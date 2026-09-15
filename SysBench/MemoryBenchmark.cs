@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 
 namespace SysBench;
 
@@ -179,7 +181,7 @@ public static class MemoryBenchmark
                 long end = (t == threads - 1) ? count : start + perThread;
                 long sum = 0;
                 for (long i = start; i < end; i++) sum += ptr[i]; // read
-                for (long i = start; i < end; i++) ptr[i] = sum + i; // write
+                for (long i = start; i < end; i++) ptr[i] = sum + i; // write (same array → cache-hot)
                 ptr[start] = sum; // prevent elimination
             });
             sw.Stop();
@@ -217,7 +219,20 @@ public static class MemoryBenchmark
             {
                 long start = t * perThread;
                 long end = (t == threads - 1) ? count : start + perThread;
-                for (long i = start; i < end; i++) dst[i] = src[i];
+                if (Avx2.IsSupported)
+                {
+                    int vecLen = Vector256<long>.Count; // 4 longs = 32 bytes
+                    for (long i = start; i < end; i += vecLen)
+                    {
+                        var vec = Avx.LoadAlignedVector256((float*)(src + i));
+                        Avx.StoreAlignedNonTemporal((float*)(dst + i), vec);
+                    }
+                    Sse2.MemoryFence();
+                }
+                else
+                {
+                    for (long i = start; i < end; i++) dst[i] = src[i];
+                }
             });
             sw.Stop();
 
