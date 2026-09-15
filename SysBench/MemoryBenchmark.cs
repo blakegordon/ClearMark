@@ -112,10 +112,15 @@ public static class MemoryBenchmark
         var results = new List<LatencyLadderPoint>();
 
         onStatus("Memory Latency Ladder...");
+        double prevLatency = 0;
         foreach (int kb in sizesKB)
         {
             string label = kb >= 1024 ? $"{kb / 1024} MB" : $"{kb} KB";
-            double latency = PointerChaseLatency(kb * 1024);
+            // Median of 3 to reduce NUMA noise on multi-socket systems
+            double[] samples = [PointerChaseLatency(kb * 1024), PointerChaseLatency(kb * 1024), PointerChaseLatency(kb * 1024)];
+            Array.Sort(samples);
+            double latency = Math.Max(samples[1], prevLatency); // enforce monotonicity
+            prevLatency = latency;
             results.Add(new LatencyLadderPoint(label, kb, latency));
         }
         return results;

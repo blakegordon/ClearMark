@@ -80,7 +80,7 @@ public static class GpuBenchmark
     private const int HashIter = 10_000;
     private const int Runs = 3;
 
-    public static List<GpuResult>? Run(Action<string> onStatus)
+    public static List<GpuResult>? Run(Action<string> onStatus, string? primaryGpuName = null)
     {
         GraphicsDevice[] devices;
         try { devices = GraphicsDevice.QueryDevices(d => d.IsHardwareAccelerated).ToArray(); }
@@ -88,17 +88,22 @@ public static class GpuBenchmark
 
         if (devices.Length == 0) return null;
 
-        // Identify which device is the system default (for scoring)
-        string defaultName;
-        try { defaultName = GraphicsDevice.GetDefault().Name; }
-        catch { defaultName = devices[0].Name; }
-
         var results = new List<GpuResult>();
+
+        // If we have a WMI-detected GPU name, match it; otherwise first device is primary
+        bool MatchesPrimary(string deviceName) =>
+            primaryGpuName != null
+                ? deviceName.Contains(primaryGpuName, StringComparison.OrdinalIgnoreCase)
+                    || primaryGpuName.Contains(deviceName, StringComparison.OrdinalIgnoreCase)
+                : false;
+
+        // If no device matches the WMI name, fall back to first device
+        bool anyMatch = primaryGpuName != null && devices.Any(d => MatchesPrimary(d.Name));
 
         for (int g = 0; g < devices.Length; g++)
         {
             var device = devices[g];
-            bool isPrimary = device.Name == defaultName;
+            bool isPrimary = anyMatch ? MatchesPrimary(device.Name) : g == 0;
             string name = device.Name;
             string label = devices.Length > 1 ? $"[[{name}]] " : "";
 

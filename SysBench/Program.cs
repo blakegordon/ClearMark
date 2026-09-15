@@ -41,7 +41,7 @@ AnsiConsole.Status().Start("Running...", ctx =>
 
     // GPU
     if (!skipGpu)
-        gpuResults = GpuBenchmark.Run(status => ctx.Status(status));
+        gpuResults = GpuBenchmark.Run(status => ctx.Status(status), hw.GpuName);
 });
 
 // ── 3. Display results ──────────────────────────────────────────────────

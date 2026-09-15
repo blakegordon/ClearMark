@@ -89,7 +89,9 @@ public static class Report
 
     public static void PrintGpu(List<GpuResult> results)
     {
-        var deviceGroups = results.GroupBy(r => r.DeviceName);
+        // Show primary GPU first
+        var deviceGroups = results.GroupBy(r => r.DeviceName)
+            .OrderByDescending(g => g.First().IsPrimary);
 
         foreach (var group in deviceGroups)
         {
