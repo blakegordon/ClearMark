@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace SysBench;
 
@@ -150,71 +151,82 @@ public static class MemoryBenchmark
     }
 
     /// <summary>
-    /// Multi-threaded sequential read+write. Each thread works on its own chunk,
-    /// saturating all available memory channels.
+    /// Multi-threaded sequential read+write using native memory for correct NUMA placement.
+    /// Each thread gets 64 MB to generate sustained memory traffic across all channels.
     /// </summary>
-    private static double SequentialBandwidthMT()
+    private static unsafe double SequentialBandwidthMT()
     {
-        int count = ArraySizeMB * 1024 * 1024 / sizeof(long);
-        long[] array = new long[count];
         int threads = Environment.ProcessorCount;
-        int chunkSize = count / threads;
+        long perThread = 64L * 1024 * 1024 / sizeof(long); // 64 MB per thread in longs
+        long count = perThread * threads;
+        long totalBytes = count * sizeof(long);
 
-        // Pre-touch: parallel write ensures pages are NUMA-distributed across nodes
-        Parallel.For(0, threads, t =>
+        long* ptr = (long*)NativeMemory.AlignedAlloc((nuint)totalBytes, 64);
+        try
         {
-            int start = t * chunkSize;
-            int end = (t == threads - 1) ? count : start + chunkSize;
-            for (int i = start; i < end; i++) array[i] = i;
-        });
+            // First-touch: each thread faults its own pages → NUMA-distributed
+            Parallel.For(0, threads, t =>
+            {
+                long start = t * perThread;
+                long end = (t == threads - 1) ? count : start + perThread;
+                for (long i = start; i < end; i++) ptr[i] = i;
+            });
 
-        // Timed: parallel read + write
-        var sw = Stopwatch.StartNew();
-        Parallel.For(0, threads, t =>
-        {
-            int start = t * chunkSize;
-            int end = (t == threads - 1) ? count : start + chunkSize;
-            long sum = 0;
-            for (int i = start; i < end; i++) sum += array[i]; // read
-            for (int i = start; i < end; i++) array[i] = sum + i; // write
-            Volatile.Write(ref array[start], sum); // prevent elimination
-        });
-        sw.Stop();
+            var sw = Stopwatch.StartNew();
+            Parallel.For(0, threads, t =>
+            {
+                long start = t * perThread;
+                long end = (t == threads - 1) ? count : start + perThread;
+                long sum = 0;
+                for (long i = start; i < end; i++) sum += ptr[i]; // read
+                for (long i = start; i < end; i++) ptr[i] = sum + i; // write
+                ptr[start] = sum; // prevent elimination
+            });
+            sw.Stop();
 
-        double totalBytes = (double)count * sizeof(long) * 2; // read + write
-        return totalBytes / sw.Elapsed.TotalSeconds / (1024.0 * 1024.0);
+            return totalBytes * 2.0 / sw.Elapsed.TotalSeconds / (1024.0 * 1024.0);
+        }
+        finally { NativeMemory.AlignedFree(ptr); }
     }
 
     /// <summary>
-    /// Multi-threaded copy. Each thread copies its own chunk via a manual loop
-    /// that the JIT auto-vectorizes. Returns MB/s (combined read+write).
+    /// Multi-threaded copy using native memory for correct NUMA placement.
+    /// Each thread copies its own 64 MB chunk via a JIT-vectorizable loop.
     /// </summary>
-    private static double CopyBandwidthMT()
+    private static unsafe double CopyBandwidthMT()
     {
-        int count = ArraySizeMB * 1024 * 1024 / sizeof(long);
-        long[] src = new long[count];
-        long[] dst = new long[count];
         int threads = Environment.ProcessorCount;
-        int chunkSize = count / threads;
+        long perThread = 64L * 1024 * 1024 / sizeof(long);
+        long count = perThread * threads;
+        long totalBytes = count * sizeof(long);
 
-        // Pre-touch BOTH arrays across NUMA nodes
-        Parallel.For(0, threads, t =>
+        long* src = (long*)NativeMemory.AlignedAlloc((nuint)totalBytes, 64);
+        long* dst = (long*)NativeMemory.AlignedAlloc((nuint)totalBytes, 64);
+        try
         {
-            int start = t * chunkSize;
-            int end = (t == threads - 1) ? count : start + chunkSize;
-            for (int i = start; i < end; i++) { src[i] = i; dst[i] = 0; }
-        });
+            // First-touch BOTH on correct NUMA nodes
+            Parallel.For(0, threads, t =>
+            {
+                long start = t * perThread;
+                long end = (t == threads - 1) ? count : start + perThread;
+                for (long i = start; i < end; i++) { src[i] = i; dst[i] = 0; }
+            });
 
-        var sw = Stopwatch.StartNew();
-        Parallel.For(0, threads, t =>
+            var sw = Stopwatch.StartNew();
+            Parallel.For(0, threads, t =>
+            {
+                long start = t * perThread;
+                long end = (t == threads - 1) ? count : start + perThread;
+                for (long i = start; i < end; i++) dst[i] = src[i];
+            });
+            sw.Stop();
+
+            return totalBytes * 2.0 / sw.Elapsed.TotalSeconds / (1024.0 * 1024.0);
+        }
+        finally
         {
-            int start = t * chunkSize;
-            int end = (t == threads - 1) ? count : start + chunkSize;
-            for (int i = start; i < end; i++) dst[i] = src[i];
-        });
-        sw.Stop();
-
-        double totalBytes = (double)count * sizeof(long) * 2; // read src + write dst
-        return totalBytes / sw.Elapsed.TotalSeconds / (1024.0 * 1024.0);
+            NativeMemory.AlignedFree(src);
+            NativeMemory.AlignedFree(dst);
+        }
     }
 }
