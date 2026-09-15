@@ -89,22 +89,32 @@ public static class Report
 
     public static void PrintGpu(List<GpuResult> results)
     {
-        var table = new Table().Title("[bold yellow]GPU[/]").Border(TableBorder.Rounded)
-            .AddColumn("Test").AddColumn(new TableColumn("Result").RightAligned())
-            .AddColumn(new TableColumn("Score").RightAligned());
+        var deviceGroups = results.GroupBy(r => r.DeviceName);
 
-        foreach (var r in results)
+        foreach (var group in deviceGroups)
         {
-            if (r.Value == 0 && r.Unit.Contains("N/A"))
+            bool isPrimary = group.First().IsPrimary;
+            string suffix = isPrimary ? " (primary)" : " (secondary — not scored)";
+            string escapedName = Markup.Escape(group.Key);
+            var table = new Table()
+                .Title($"[bold yellow]GPU: {escapedName}{suffix}[/]")
+                .Border(TableBorder.Rounded)
+                .AddColumn("Test").AddColumn(new TableColumn("Result").RightAligned())
+                .AddColumn(new TableColumn("Score").RightAligned());
+
+            foreach (var r in group)
             {
-                table.AddRow(r.TestName, "[dim]unsupported[/]", "[dim]—[/]");
-                continue;
+                if (r.Value == 0 && r.Unit.Contains("N/A"))
+                {
+                    table.AddRow(r.TestName, "[dim]unsupported[/]", "[dim]—[/]");
+                    continue;
+                }
+                double score = Scoring.ScoreOne(r.TestName, r.Value);
+                table.AddRow(r.TestName, $"{r.Value:N0} {r.Unit}", ScoreMarkup(score));
             }
-            double score = Scoring.ScoreOne(r.TestName, r.Value);
-            table.AddRow(r.TestName, $"{r.Value:N0} {r.Unit}", ScoreMarkup(score));
+            AnsiConsole.Write(table);
+            AnsiConsole.WriteLine();
         }
-        AnsiConsole.Write(table);
-        AnsiConsole.WriteLine();
     }
 
     public static void PrintComposite(double gaming, double productivity, double balanced)

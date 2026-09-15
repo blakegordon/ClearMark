@@ -36,9 +36,12 @@ public static class Scoring
         ["4K Rand Read"]       = 80,       // MB/s — good Gen4 NVMe at QD1
         ["4K Rand Write"]      = 200,      // MB/s — good Gen4 NVMe at QD1
         // GPU — mid-range 2024 (e.g. RTX 4060)
-        ["GPU FP32"]           = 1_000,    // Mpix/s — Mandelbrot 4K×4K single-precision
-        ["GPU FP64"]           = 30,       // Mpix/s — Mandelbrot 4K×4K double-precision (1/32 ratio typical)
-        ["GPU Integer"]        = 800,      // GIOPS — xorshift-multiply hash
+        // Calibrated from real data: RTX 4090 ≈ 26,000 FP32 / 30,000 INT (≈ 3× mid-range)
+        //   Titan V ≈ 7,000 FP32 / 3,200 FP64 (Volta 1:2 ratio)
+        //   Iris Xe ≈ 500 FP32 / 485 INT (integrated)
+        ["GPU FP32"]           = 8_000,    // Mpix/s — Mandelbrot 4K×4K single-precision
+        ["GPU FP64"]           = 150,      // Mpix/s — Mandelbrot 4K×4K double-precision
+        ["GPU Integer"]        = 10_000,   // GIOPS — xorshift-multiply hash
     };
 
     // Tests where lower values are better
@@ -74,9 +77,10 @@ public static class Scoring
         bool hasStorage = storage.Count > 0;
         double storScore = hasStorage ? AverageScore(storage.Select(r => ScoreOne(r.TestName, r.Value))) : 0;
 
-        // Only score GPU tests that actually ran (exclude "unsupported" entries)
-        bool hasGpu = gpu != null && gpu.Any(r => r.Value > 0);
-        double gpuScore = hasGpu ? AverageScore(gpu!.Where(r => r.Value > 0).Select(r => ScoreOne(r.TestName, r.Value))) : 0;
+        // Only score primary GPU tests that actually ran (exclude "unsupported" and secondary GPUs)
+        var primaryGpu = gpu?.Where(r => r.IsPrimary && r.Value > 0).ToList();
+        bool hasGpu = primaryGpu != null && primaryGpu.Count > 0;
+        double gpuScore = hasGpu ? AverageScore(primaryGpu!.Select(r => ScoreOne(r.TestName, r.Value))) : 0;
 
         double[] scores = [cpu1T, cpuNT, memScore, storScore, gpuScore];
         bool[] active = [true, true, true, hasStorage, hasGpu];

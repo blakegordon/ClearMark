@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 namespace SysBench;
 
-public record GpuResult(string TestName, double Value, string Unit);
+public record GpuResult(string DeviceName, bool IsPrimary, string TestName, double Value, string Unit);
 
 // ── Shader: Mandelbrot set (floating-point stress test) ──────────────
 // Each thread computes one pixel. Heavy on FP multiply/add.
@@ -82,40 +82,55 @@ public static class GpuBenchmark
 
     public static List<GpuResult>? Run(Action<string> onStatus)
     {
-        GraphicsDevice device;
-        try { device = GraphicsDevice.GetDefault(); }
-        catch { return null; } // No DX12 GPU available
+        GraphicsDevice[] devices;
+        try { devices = GraphicsDevice.QueryDevices(d => d.IsHardwareAccelerated).ToArray(); }
+        catch { return null; }
+
+        if (devices.Length == 0) return null;
+
+        // Identify which device is the system default (for scoring)
+        string defaultName;
+        try { defaultName = GraphicsDevice.GetDefault().Name; }
+        catch { defaultName = devices[0].Name; }
 
         var results = new List<GpuResult>();
 
-        // ── FP32: Mandelbrot ────────────────────────────────────────────
-        onStatus("GPU FP32 (Mandelbrot 4K×4K)...");
-        using (var buf = device.AllocateReadWriteBuffer<int>(Pixels))
+        for (int g = 0; g < devices.Length; g++)
         {
-            double val = MeasureMedian(() => device.For(Pixels, new MandelbrotShader(buf, Size, MaxIter)),
-                                       elapsed => Pixels / elapsed / 1e6);
-            results.Add(new GpuResult("GPU FP32", val, "Mpix/s"));
-        }
+            var device = devices[g];
+            bool isPrimary = device.Name == defaultName;
+            string name = device.Name;
+            string label = devices.Length > 1 ? $"[[{name}]] " : "";
 
-        // ── FP64: Mandelbrot (double precision) ─────────────────────────
-        onStatus("GPU FP64 (Mandelbrot 4K×4K double)...");
-        try
-        {
-            using var buf = device.AllocateReadWriteBuffer<int>(Pixels);
-            double val = MeasureMedian(() => device.For(Pixels, new MandelbrotFP64Shader(buf, Size, MaxIter)),
-                                       elapsed => Pixels / elapsed / 1e6);
-            results.Add(new GpuResult("GPU FP64", val, "Mpix/s"));
-        }
-        catch { results.Add(new GpuResult("GPU FP64", 0, "N/A (unsupported)")); }
+            // ── FP32: Mandelbrot ────────────────────────────────────────
+            onStatus($"{label}GPU FP32 (Mandelbrot 4K×4K)...");
+            using (var buf = device.AllocateReadWriteBuffer<int>(Pixels))
+            {
+                double val = MeasureMedian(() => device.For(Pixels, new MandelbrotShader(buf, Size, MaxIter)),
+                                           elapsed => Pixels / elapsed / 1e6);
+                results.Add(new GpuResult(name, isPrimary, "GPU FP32", val, "Mpix/s"));
+            }
 
-        // ── Integer: Hash mixing ────────────────────────────────────────
-        onStatus("GPU Integer (Hash 16M×10K)...");
-        using (var buf = device.AllocateReadWriteBuffer<uint>(Pixels))
-        {
-            double totalOps = (double)Pixels * HashIter * 7.0; // 7 ops per iteration
-            double val = MeasureMedian(() => device.For(Pixels, new IntHashShader(buf, HashIter)),
-                                       elapsed => totalOps / elapsed / 1e9);
-            results.Add(new GpuResult("GPU Integer", val, "GIOPS"));
+            // ── FP64: Mandelbrot (double precision) ─────────────────────
+            onStatus($"{label}GPU FP64 (Mandelbrot 4K×4K double)...");
+            try
+            {
+                using var buf = device.AllocateReadWriteBuffer<int>(Pixels);
+                double val = MeasureMedian(() => device.For(Pixels, new MandelbrotFP64Shader(buf, Size, MaxIter)),
+                                           elapsed => Pixels / elapsed / 1e6);
+                results.Add(new GpuResult(name, isPrimary, "GPU FP64", val, "Mpix/s"));
+            }
+            catch { results.Add(new GpuResult(name, isPrimary, "GPU FP64", 0, "N/A (unsupported)")); }
+
+            // ── Integer: Hash mixing ────────────────────────────────────
+            onStatus($"{label}GPU Integer (Hash 16M×10K)...");
+            using (var buf = device.AllocateReadWriteBuffer<uint>(Pixels))
+            {
+                double totalOps = (double)Pixels * HashIter * 7.0;
+                double val = MeasureMedian(() => device.For(Pixels, new IntHashShader(buf, HashIter)),
+                                           elapsed => totalOps / elapsed / 1e9);
+                results.Add(new GpuResult(name, isPrimary, "GPU Integer", val, "GIOPS"));
+            }
         }
 
         return results;
