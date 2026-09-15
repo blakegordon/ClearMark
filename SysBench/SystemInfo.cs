@@ -1,0 +1,80 @@
+using System.Management;
+using System.Runtime.InteropServices;
+
+namespace SysBench;
+
+public record HardwareInfo(
+    string CpuName, int Cores, int Threads, string Architecture,
+    long TotalRamBytes, string RamSpeed,
+    string GpuName, string GpuDriver,
+    string OsDrive, string OsVersion);
+
+public static class SystemInfo
+{
+    public static HardwareInfo Detect()
+    {
+        string cpu = "Unknown", ramSpeed = "Unknown", gpu = "Unknown", gpuDriver = "Unknown", osDrive = "Unknown";
+        int cores = Environment.ProcessorCount, threads = Environment.ProcessorCount;
+
+        try
+        {
+            using var cpuSearcher = new ManagementObjectSearcher("SELECT Name, NumberOfCores, ThreadCount FROM Win32_Processor");
+            int sockets = 0;
+            int totalCores = 0, totalThreads = 0;
+            string cpuName = cpu;
+            foreach (var obj in cpuSearcher.Get())
+            {
+                sockets++;
+                cpuName = obj["Name"]?.ToString()?.Trim() ?? cpuName;
+                totalCores += Convert.ToInt32(obj["NumberOfCores"]);
+                totalThreads += Convert.ToInt32(obj["ThreadCount"]);
+            }
+            if (sockets > 0)
+            {
+                cpu = sockets > 1 ? $"{sockets}× {cpuName}" : cpuName;
+                cores = totalCores;
+                threads = totalThreads;
+            }
+        }
+        catch { /* WMI may fail on some systems */ }
+
+        try
+        {
+            using var ramSearcher = new ManagementObjectSearcher("SELECT Speed FROM Win32_PhysicalMemory");
+            foreach (var obj in ramSearcher.Get())
+            {
+                ramSpeed = $"{obj["Speed"]} MHz";
+                break;
+            }
+        }
+        catch { }
+
+        try
+        {
+            using var gpuSearcher = new ManagementObjectSearcher("SELECT Name, DriverVersion FROM Win32_VideoController");
+            foreach (var obj in gpuSearcher.Get())
+            {
+                gpu = obj["Name"]?.ToString()?.Trim() ?? gpu;
+                gpuDriver = obj["DriverVersion"]?.ToString() ?? gpuDriver;
+            }
+        }
+        catch { }
+
+        try
+        {
+            string sysRoot = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
+            using var diskSearcher = new ManagementObjectSearcher(
+                $"SELECT Model FROM Win32_DiskDrive WHERE Index = 0");
+            foreach (var obj in diskSearcher.Get())
+                osDrive = obj["Model"]?.ToString()?.Trim() ?? osDrive;
+        }
+        catch { }
+
+        var gcInfo = GC.GetGCMemoryInfo();
+        return new HardwareInfo(
+            cpu, cores, threads, RuntimeInformation.ProcessArchitecture.ToString(),
+            gcInfo.TotalAvailableMemoryBytes, ramSpeed,
+            gpu, gpuDriver, osDrive,
+            $"{RuntimeInformation.OSDescription}");
+    }
+}
