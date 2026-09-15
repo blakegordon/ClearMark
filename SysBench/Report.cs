@@ -87,15 +87,36 @@ public static class Report
         AnsiConsole.WriteLine();
     }
 
+    public static void PrintGpu(List<GpuResult> results)
+    {
+        var table = new Table().Title("[bold yellow]GPU[/]").Border(TableBorder.Rounded)
+            .AddColumn("Test").AddColumn(new TableColumn("Result").RightAligned())
+            .AddColumn(new TableColumn("Score").RightAligned());
+
+        foreach (var r in results)
+        {
+            if (r.Value == 0 && r.Unit.Contains("N/A"))
+            {
+                table.AddRow(r.TestName, "[dim]unsupported[/]", "[dim]—[/]");
+                continue;
+            }
+            double score = Scoring.ScoreOne(r.TestName, r.Value);
+            table.AddRow(r.TestName, $"{r.Value:N0} {r.Unit}", ScoreMarkup(score));
+        }
+        AnsiConsole.Write(table);
+        AnsiConsole.WriteLine();
+    }
+
     public static void PrintComposite(double gaming, double productivity, double balanced)
     {
         var table = new Table().Title("[bold magenta]Composite Scores[/]").Border(TableBorder.Double)
             .AddColumn("Profile").AddColumn(new TableColumn("Score").RightAligned())
-            .AddColumn("Weights (1T CPU / nT CPU / Memory / Storage)");
+            .AddColumn("Weights (1T / nT / Mem / Stor / GPU)");
 
-        table.AddRow("Gaming",       ScoreMarkup(gaming),       $"{Scoring.GamingSingleCore:P0} / {Scoring.GamingMultiCore:P0} / {Scoring.GamingMemory:P0} / {Scoring.GamingStorage:P0}");
-        table.AddRow("Productivity", ScoreMarkup(productivity), $"{Scoring.ProdSingleCore:P0} / {Scoring.ProdMultiCore:P0} / {Scoring.ProdMemory:P0} / {Scoring.ProdStorage:P0}");
-        table.AddRow("Balanced",     ScoreMarkup(balanced),     $"{Scoring.BalancedSingleCore:P0} / {Scoring.BalancedMultiCore:P0} / {Scoring.BalancedMemory:P0} / {Scoring.BalancedStorage:P0}");
+        string Fmt(double[] w) => string.Join(" / ", w.Select(v => $"{v:P0}"));
+        table.AddRow("Gaming",       ScoreMarkup(gaming),       Fmt(Scoring.GamingWeights));
+        table.AddRow("Productivity", ScoreMarkup(productivity), Fmt(Scoring.ProdWeights));
+        table.AddRow("Balanced",     ScoreMarkup(balanced),     Fmt(Scoring.BalancedWeights));
 
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();

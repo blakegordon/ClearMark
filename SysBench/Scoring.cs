@@ -35,6 +35,10 @@ public static class Scoring
         ["Seq. Write"]         = 4_000,    // MB/s
         ["4K Rand Read"]       = 80,       // MB/s — good Gen4 NVMe at QD1
         ["4K Rand Write"]      = 200,      // MB/s — good Gen4 NVMe at QD1
+        // GPU — mid-range 2024 (e.g. RTX 4060)
+        ["GPU FP32"]           = 1_000,    // Mpix/s — Mandelbrot 4K×4K single-precision
+        ["GPU FP64"]           = 30,       // Mpix/s — Mandelbrot 4K×4K double-precision (1/32 ratio typical)
+        ["GPU Integer"]        = 800,      // GIOPS — xorshift-multiply hash
     };
 
     // Tests where lower values are better
@@ -42,10 +46,10 @@ public static class Scoring
 
     // ── Composite profile weights ────────────────────────────────────────
     // Weights must sum to 1.0 within each profile.
-
-    public const double GamingSingleCore  = 0.35, GamingMultiCore  = 0.15, GamingMemory  = 0.20, GamingStorage  = 0.30;
-    public const double ProdSingleCore    = 0.15, ProdMultiCore    = 0.40, ProdMemory    = 0.25, ProdStorage    = 0.20;
-    public const double BalancedSingleCore = 0.25, BalancedMultiCore = 0.25, BalancedMemory = 0.25, BalancedStorage = 0.25;
+    //                                   1T CPU  nT CPU  Memory  Storage  GPU
+    public static readonly double[] GamingWeights      = [0.20,  0.10,   0.10,   0.20,   0.40];
+    public static readonly double[] ProdWeights        = [0.10,  0.30,   0.15,   0.15,   0.30];
+    public static readonly double[] BalancedWeights    = [0.20,  0.20,   0.20,   0.20,   0.20];
 
     /// <summary>Score a single test result (0–100+). Scores above 100 mean better than baseline.</summary>
     public static double ScoreOne(string testName, double value)
@@ -61,26 +65,33 @@ public static class Scoring
 
     /// <summary>Calculate Gaming/Productivity/Balanced composite scores.</summary>
     public static (double Gaming, double Productivity, double Balanced) Composite(
-        List<CpuResult> cpu, List<MemoryResult> mem, List<StorageResult> storage)
+        List<CpuResult> cpu, List<MemoryResult> mem, List<StorageResult> storage, List<GpuResult>? gpu)
     {
         double cpu1T = AverageScore(cpu.Where(r => r.TestName.EndsWith("(1T)")).Select(r => ScoreOne(r.TestName, r.Value)));
         double cpuNT = AverageScore(cpu.Where(r => r.TestName.EndsWith("(nT)")).Select(r => ScoreOne(r.TestName, r.Value)));
         double memScore = AverageScore(mem.Select(r => ScoreOne(r.TestName, r.Value)));
-        // When storage is skipped, redistribute its weight proportionally
+
         bool hasStorage = storage.Count > 0;
         double storScore = hasStorage ? AverageScore(storage.Select(r => ScoreOne(r.TestName, r.Value))) : 0;
 
-        double Calc(double w1T, double wNT, double wMem, double wStor)
+        // Only score GPU tests that actually ran (exclude "unsupported" entries)
+        bool hasGpu = gpu != null && gpu.Any(r => r.Value > 0);
+        double gpuScore = hasGpu ? AverageScore(gpu!.Where(r => r.Value > 0).Select(r => ScoreOne(r.TestName, r.Value))) : 0;
+
+        double[] scores = [cpu1T, cpuNT, memScore, storScore, gpuScore];
+        bool[] active = [true, true, true, hasStorage, hasGpu];
+
+        double Calc(double[] weights)
         {
-            if (!hasStorage) { double s = 1.0 / (1.0 - wStor); w1T *= s; wNT *= s; wMem *= s; wStor = 0; }
-            return cpu1T * w1T + cpuNT * wNT + memScore * wMem + storScore * wStor;
+            // Redistribute weight of skipped categories proportionally
+            double activeSum = 0;
+            for (int i = 0; i < 5; i++) if (active[i]) activeSum += weights[i];
+            double total = 0;
+            for (int i = 0; i < 5; i++) if (active[i]) total += scores[i] * weights[i] / activeSum;
+            return total;
         }
 
-        double gaming  = Calc(GamingSingleCore, GamingMultiCore, GamingMemory, GamingStorage);
-        double prod    = Calc(ProdSingleCore, ProdMultiCore, ProdMemory, ProdStorage);
-        double balanced = Calc(BalancedSingleCore, BalancedMultiCore, BalancedMemory, BalancedStorage);
-
-        return (gaming, prod, balanced);
+        return (Calc(GamingWeights), Calc(ProdWeights), Calc(BalancedWeights));
     }
 
     private static double AverageScore(IEnumerable<double> scores)

@@ -6,6 +6,7 @@ AnsiConsole.MarkupLine("[dim]https://github.com/sysbench — All scoring formula
 AnsiConsole.WriteLine();
 
 bool skipStorage = args.Any(a => a.Equals("--skip-storage", StringComparison.OrdinalIgnoreCase));
+bool skipGpu = args.Any(a => a.Equals("--skip-gpu", StringComparison.OrdinalIgnoreCase));
 
 // ── 1. Detect hardware ──────────────────────────────────────────────────
 var hw = SystemInfo.Detect();
@@ -19,6 +20,7 @@ List<CpuResult> cpuResults = [];
 List<MemoryResult> memResults = [];
 List<LatencyLadderPoint> ladderResults = [];
 List<StorageResult> storageResults = [];
+List<GpuResult>? gpuResults = null;
 
 AnsiConsole.Status().Start("Running...", ctx =>
 {
@@ -36,6 +38,10 @@ AnsiConsole.Status().Start("Running...", ctx =>
     // Storage
     if (!skipStorage)
         storageResults = StorageBenchmark.Run(status => ctx.Status(status));
+
+    // GPU
+    if (!skipGpu)
+        gpuResults = GpuBenchmark.Run(status => ctx.Status(status));
 });
 
 // ── 3. Display results ──────────────────────────────────────────────────
@@ -51,7 +57,14 @@ if (storageResults.Count > 0)
 else
     AnsiConsole.MarkupLine("[dim]Storage tests skipped (--skip-storage)[/]\n");
 
-var (gaming, productivity, balanced) = Scoring.Composite(cpuResults, memResults, storageResults);
+if (gpuResults != null)
+    Report.PrintGpu(gpuResults);
+else if (skipGpu)
+    AnsiConsole.MarkupLine("[dim]GPU tests skipped (--skip-gpu)[/]\n");
+else
+    AnsiConsole.MarkupLine("[dim]GPU tests skipped (no DX12 GPU detected)[/]\n");
+
+var (gaming, productivity, balanced) = Scoring.Composite(cpuResults, memResults, storageResults, gpuResults);
 Report.PrintComposite(gaming, productivity, balanced);
 
 AnsiConsole.WriteLine();
