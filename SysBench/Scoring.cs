@@ -26,10 +26,13 @@ public static class Scoring
         ["Crypto (nT)"]        = 14_000,   // MB/s
         ["Compression (1T)"]   = 2_500,    // MB/s — Brotli Fastest is very fast on modern CPUs
         ["Compression (nT)"]   = 18_000,   // MB/s
-        // Memory
-        ["Seq. Bandwidth"]     = 40_000,   // MB/s — DDR5 dual-channel
-        ["Random Latency"]     = 70,       // ns (lower is better — scoring inverted)
-        ["Copy Bandwidth"]     = 35_000,   // MB/s
+        // Memory — 1T (single-channel limited)
+        ["Seq. Bandwidth (1T)"] = 40_000,   // MB/s — DDR5 single-thread
+        ["Random Latency"]      = 70,       // ns (lower is better — scoring inverted)
+        ["Copy Bandwidth (1T)"] = 35_000,   // MB/s
+        // Memory — nT (all channels saturated)
+        ["Seq. Bandwidth (nT)"] = 80_000,   // MB/s — DDR5 dual-channel fully saturated
+        ["Copy Bandwidth (nT)"] = 70_000,   // MB/s
         // Storage — modern Gen4 NVMe
         ["Seq. Read"]          = 5_000,    // MB/s
         ["Seq. Write"]         = 4_000,    // MB/s

@@ -15,14 +15,20 @@ public static class MemoryBenchmark
     {
         var results = new List<MemoryResult>();
 
-        onStatus("Memory Sequential Bandwidth...");
-        results.Add(Measure("Seq. Bandwidth", "MB/s", SequentialBandwidth));
+        onStatus("Memory Sequential Bandwidth (1T)...");
+        results.Add(Measure("Seq. Bandwidth (1T)", "MB/s", SequentialBandwidth));
+
+        onStatus("Memory Sequential Bandwidth (nT)...");
+        results.Add(Measure("Seq. Bandwidth (nT)", "MB/s", SequentialBandwidthMT));
 
         onStatus("Memory Random Latency...");
         results.Add(Measure("Random Latency", "ns", RandomLatency));
 
-        onStatus("Memory Copy Bandwidth...");
-        results.Add(Measure("Copy Bandwidth", "MB/s", CopyBandwidth));
+        onStatus("Memory Copy Bandwidth (1T)...");
+        results.Add(Measure("Copy Bandwidth (1T)", "MB/s", CopyBandwidth));
+
+        onStatus("Memory Copy Bandwidth (nT)...");
+        results.Add(Measure("Copy Bandwidth (nT)", "MB/s", CopyBandwidthMT));
 
         return results;
     }
@@ -141,5 +147,74 @@ public static class MemoryBenchmark
         sw.Stop();
 
         return byteCount / sw.Elapsed.TotalSeconds / (1024.0 * 1024.0);
+    }
+
+    /// <summary>
+    /// Multi-threaded sequential read+write. Each thread works on its own chunk,
+    /// saturating all available memory channels.
+    /// </summary>
+    private static double SequentialBandwidthMT()
+    {
+        int count = ArraySizeMB * 1024 * 1024 / sizeof(long);
+        long[] array = new long[count];
+        int threads = Environment.ProcessorCount;
+        int chunkSize = count / threads;
+
+        // Pre-touch: parallel write ensures pages are NUMA-distributed across nodes
+        Parallel.For(0, threads, t =>
+        {
+            int start = t * chunkSize;
+            int end = (t == threads - 1) ? count : start + chunkSize;
+            for (int i = start; i < end; i++) array[i] = i;
+        });
+
+        // Timed: parallel read + write
+        var sw = Stopwatch.StartNew();
+        Parallel.For(0, threads, t =>
+        {
+            int start = t * chunkSize;
+            int end = (t == threads - 1) ? count : start + chunkSize;
+            long sum = 0;
+            for (int i = start; i < end; i++) sum += array[i]; // read
+            for (int i = start; i < end; i++) array[i] = sum + i; // write
+            Volatile.Write(ref array[start], sum); // prevent elimination
+        });
+        sw.Stop();
+
+        double totalBytes = (double)count * sizeof(long) * 2; // read + write
+        return totalBytes / sw.Elapsed.TotalSeconds / (1024.0 * 1024.0);
+    }
+
+    /// <summary>
+    /// Multi-threaded copy. Each thread copies its own chunk via a manual loop
+    /// that the JIT auto-vectorizes. Returns MB/s (combined read+write).
+    /// </summary>
+    private static double CopyBandwidthMT()
+    {
+        int count = ArraySizeMB * 1024 * 1024 / sizeof(long);
+        long[] src = new long[count];
+        long[] dst = new long[count];
+        int threads = Environment.ProcessorCount;
+        int chunkSize = count / threads;
+
+        // Pre-touch BOTH arrays across NUMA nodes
+        Parallel.For(0, threads, t =>
+        {
+            int start = t * chunkSize;
+            int end = (t == threads - 1) ? count : start + chunkSize;
+            for (int i = start; i < end; i++) { src[i] = i; dst[i] = 0; }
+        });
+
+        var sw = Stopwatch.StartNew();
+        Parallel.For(0, threads, t =>
+        {
+            int start = t * chunkSize;
+            int end = (t == threads - 1) ? count : start + chunkSize;
+            for (int i = start; i < end; i++) dst[i] = src[i];
+        });
+        sw.Stop();
+
+        double totalBytes = (double)count * sizeof(long) * 2; // read src + write dst
+        return totalBytes / sw.Elapsed.TotalSeconds / (1024.0 * 1024.0);
     }
 }
