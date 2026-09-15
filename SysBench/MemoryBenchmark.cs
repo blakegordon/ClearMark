@@ -166,8 +166,8 @@ public static class MemoryBenchmark
         long* ptr = (long*)NativeMemory.AlignedAlloc((nuint)totalBytes, 64);
         try
         {
-            // First-touch: each thread faults its own pages → NUMA-distributed
-            Parallel.For(0, threads, t =>
+            // First-touch: pinned so each core faults pages on its local NUMA node
+            PinnedFor(threads, t =>
             {
                 long start = t * perThread;
                 long end = (t == threads - 1) ? count : start + perThread;
@@ -175,7 +175,7 @@ public static class MemoryBenchmark
             });
 
             var sw = Stopwatch.StartNew();
-            Parallel.For(0, threads, t =>
+            PinnedFor(threads, t =>
             {
                 long start = t * perThread;
                 long end = (t == threads - 1) ? count : start + perThread;
@@ -207,7 +207,7 @@ public static class MemoryBenchmark
         try
         {
             // First-touch BOTH on correct NUMA nodes
-            Parallel.For(0, threads, t =>
+            PinnedFor(threads, t =>
             {
                 long start = t * perThread;
                 long end = (t == threads - 1) ? count : start + perThread;
@@ -215,7 +215,7 @@ public static class MemoryBenchmark
             });
 
             var sw = Stopwatch.StartNew();
-            Parallel.For(0, threads, t =>
+            PinnedFor(threads, t =>
             {
                 long start = t * perThread;
                 long end = (t == threads - 1) ? count : start + perThread;
@@ -243,5 +243,33 @@ public static class MemoryBenchmark
             NativeMemory.AlignedFree(src);
             NativeMemory.AlignedFree(dst);
         }
+    }
+
+    // ── Thread pinning ──────────────────────────────────────────────
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr SetThreadAffinityMask(IntPtr hThread, IntPtr dwThreadAffinityMask);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentThread();
+
+    /// <summary>
+    /// Run body(t) for t in [0, count) on explicit threads, each pinned to logical processor t.
+    /// Ensures NUMA-stable scheduling: thread t always accesses memory local to core t.
+    /// </summary>
+    private static void PinnedFor(int count, Action<int> body)
+    {
+        var threads = new Thread[count];
+        for (int t = 0; t < count; t++)
+        {
+            int tid = t;
+            threads[t] = new Thread(() =>
+            {
+                SetThreadAffinityMask(GetCurrentThread(), new IntPtr(1L << tid));
+                body(tid);
+            }) { IsBackground = true };
+            threads[t].Start();
+        }
+        for (int t = 0; t < count; t++) threads[t].Join();
     }
 }
