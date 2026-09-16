@@ -1,108 +1,137 @@
 namespace ClearMark;
 
+internal enum BenchTest
+{
+    Integer1T, IntegerNT,
+    Float1T, FloatNT,
+    Crypto1T, CryptoNT,
+    Compression1T, CompressionNT,
+    SeqBandwidth1T, SeqBandwidthNT,
+    CopyBandwidth1T, CopyBandwidthNT,
+    RandomLatency,
+    SeqRead, SeqWrite,
+    RandRead4K, RandWrite4K,
+    GpuFp32, GpuFp64, GpuInteger,
+}
+
+internal enum ScoreBucket { Cpu1T, CpuNT, Memory, Storage, Gpu, GpuFp64 }
+
+internal readonly record struct TestSpec(
+    string Name,
+    string Unit,
+    double Reference,
+    bool LowerIsBetter,
+    ScoreBucket Bucket);
+
 /// <summary>
-/// Transparent scoring system. All weights and reference baselines are constants —
-/// anyone can read, audit, or modify them.
+/// Transparent scoring. All weights and baselines are here — anyone can audit them.
+/// Score = (yours / reference) × 100, inverted when lower is better.
 /// </summary>
 internal static class Scoring
 {
-    // ── Reference baselines (≈ mid-range 2024 desktop) ──────────────────
-    // Each value represents "good" performance; score = (yours / reference) × 100
-    // These are hand-tuned to make a modern mid-range system score ~80-90.
-
-    // CPU (Mops, Mflops, MB/s, MB/s for the 4 test types, single-thread)
-    // Calibrated so a mid-range 2024 desktop (e.g. i5-13400 / Ryzen 5 7600) scores ~80-90.
-    // The nT references assume ~8 cores of scaling from the 1T baseline.
-    public static readonly Dictionary<string, double> References = new()
+    // Baselines ≈ mid-range 2024 desktop (i5-13400 / Ryzen 5 7600 / RTX 4060 / Gen4 NVMe).
+    // nT CPU refs assume ~6–8 cores of scaling from the 1T baseline.
+    public static TestSpec Spec(BenchTest test) => test switch
     {
-        // CPU — 1T baselines from expected mid-range 2024 desktop performance
-        // Calibrated from real data: i5-1135G7 (2020 laptop) ≈ 2,000 Mops 1T.
-        // A 2024 i5-13400 is ~40% faster IPC + higher clocks ≈ 3,000 Mops 1T.
-        ["Integer (1T)"]       = 3_000,    // Mops — 500K sieve fits in L2, tests ALU
-        ["Integer (nT)"]       = 20_000,   // Mops — ~6-8 cores @ 3,000 each
-        ["Float (1T)"]         = 3_000,    // Mflops
-        ["Float (nT)"]         = 22_000,   // Mflops
-        ["Crypto (1T)"]        = 2_000,    // MB/s — SHA-256 with hardware acceleration
-        ["Crypto (nT)"]        = 14_000,   // MB/s
-        ["Compression (1T)"]   = 2_500,    // MB/s — Brotli Fastest is very fast on modern CPUs
-        ["Compression (nT)"]   = 18_000,   // MB/s
-        // Memory — 1T (single-channel limited)
-        ["Seq. Bandwidth (1T)"] = 40_000,   // MB/s — DDR5 single-thread
-        ["Random Latency"]      = 70,       // ns (lower is better — scoring inverted)
-        ["Copy Bandwidth (1T)"] = 35_000,   // MB/s
-        // Memory — nT (all channels saturated)
-        ["Seq. Bandwidth (nT)"] = 80_000,   // MB/s — DDR5 dual-channel fully saturated
-        ["Copy Bandwidth (nT)"] = 70_000,   // MB/s
-        // Storage — modern Gen4 NVMe
-        ["Seq. Read"]          = 5_000,    // MB/s
-        ["Seq. Write"]         = 4_000,    // MB/s
-        ["4K Rand Read"]       = 80,       // MB/s — good Gen4 NVMe at QD1
-        ["4K Rand Write"]      = 200,      // MB/s — good Gen4 NVMe at QD1
-        // GPU — mid-range 2024 (e.g. RTX 4060)
-        // Calibrated from real data: RTX 4090 ≈ 26,000 FP32 / 30,000 INT (≈ 3× mid-range)
-        //   Titan V ≈ 7,000 FP32 / 3,200 FP64 (Volta 1:2 ratio)
-        //   Iris Xe ≈ 500 FP32 / 485 INT (integrated)
-        ["GPU FP32"]           = 8_000,    // Mpix/s — Mandelbrot 4K×4K single-precision
-        ["GPU FP64"]           = 150,      // Mpix/s — Mandelbrot 4K×4K double-precision
-        ["GPU Integer"]        = 10_000,   // GIOPS — xorshift-multiply hash
+        BenchTest.Integer1T       => new("Integer (1T)",       "Mops",   3_000,  false, ScoreBucket.Cpu1T),
+        BenchTest.IntegerNT       => new("Integer (nT)",       "Mops",   20_000, false, ScoreBucket.CpuNT),
+        BenchTest.Float1T         => new("Float (1T)",         "Mflops", 3_000,  false, ScoreBucket.Cpu1T),
+        BenchTest.FloatNT         => new("Float (nT)",         "Mflops", 22_000, false, ScoreBucket.CpuNT),
+        BenchTest.Crypto1T        => new("Crypto (1T)",        "MB/s",   2_000,  false, ScoreBucket.Cpu1T),
+        BenchTest.CryptoNT        => new("Crypto (nT)",        "MB/s",   14_000, false, ScoreBucket.CpuNT),
+        BenchTest.Compression1T   => new("Compression (1T)",   "MB/s",   2_500,  false, ScoreBucket.Cpu1T),
+        BenchTest.CompressionNT   => new("Compression (nT)",   "MB/s",   18_000, false, ScoreBucket.CpuNT),
+        BenchTest.SeqBandwidth1T  => new("Seq. Bandwidth (1T)", "MB/s",  40_000, false, ScoreBucket.Memory),
+        BenchTest.SeqBandwidthNT  => new("Seq. Bandwidth (nT)", "MB/s",  80_000, false, ScoreBucket.Memory),
+        BenchTest.CopyBandwidth1T => new("Copy Bandwidth (1T)", "MB/s",  70_000, false, ScoreBucket.Memory),
+        BenchTest.CopyBandwidthNT => new("Copy Bandwidth (nT)", "MB/s",  70_000, false, ScoreBucket.Memory),
+        BenchTest.RandomLatency   => new("Random Latency",     "ns",     70,     true,  ScoreBucket.Memory),
+        BenchTest.SeqRead         => new("Seq. Read",          "MB/s",   5_000,  false, ScoreBucket.Storage),
+        BenchTest.SeqWrite        => new("Seq. Write",         "MB/s",   4_000,  false, ScoreBucket.Storage),
+        BenchTest.RandRead4K      => new("4K Rand Read",       "MB/s",   80,     false, ScoreBucket.Storage),
+        BenchTest.RandWrite4K     => new("4K Rand Write",      "MB/s",   200,    false, ScoreBucket.Storage),
+        BenchTest.GpuFp32         => new("GPU FP32",           "Mpix/s", 8_000,  false, ScoreBucket.Gpu),
+        BenchTest.GpuFp64         => new("GPU FP64",           "Mpix/s", 150,    false, ScoreBucket.GpuFp64),
+        BenchTest.GpuInteger      => new("GPU Integer",        "GIOPS",  10_000, false, ScoreBucket.Gpu),
+        _ => throw new ArgumentOutOfRangeException(nameof(test), test, "Missing TestSpec"),
     };
 
-    // Tests where lower values are better
-    private static readonly HashSet<string> LowerIsBetter = ["Random Latency"];
-
-    // ── Composite profile weights ────────────────────────────────────────
-    // Weights must sum to 1.0 within each profile.
     //                                   1T CPU  nT CPU  Memory  Storage  GPU
     public static readonly double[] GamingWeights      = [0.20,  0.10,   0.10,   0.20,   0.40];
     public static readonly double[] ProdWeights        = [0.10,  0.30,   0.15,   0.15,   0.30];
     public static readonly double[] BalancedWeights    = [0.20,  0.20,   0.20,   0.20,   0.20];
 
-    /// <summary>Score a single test result (0–100+). Scores above 100 mean better than baseline.</summary>
-    public static double ScoreOne(string testName, double value)
+    public static double ScoreOne(BenchTest test, double value)
     {
-        if (!References.TryGetValue(testName, out double reference))
-            return 0;
-
-        if (LowerIsBetter.Contains(testName))
-            return reference / Math.Max(value, 0.001) * 100.0;
-
-        return value / Math.Max(reference, 0.001) * 100.0;
+        var spec = Spec(test);
+        if (spec.LowerIsBetter)
+            return spec.Reference / Math.Max(value, 0.001) * 100.0;
+        return value / Math.Max(spec.Reference, 0.001) * 100.0;
     }
 
-    /// <summary>Calculate Gaming/Productivity/Balanced composite scores.</summary>
-    public static (double Gaming, double Productivity, double Balanced) Composite(List<CpuResult> cpu, List<MemoryResult> mem, List<StorageResult> storage, List<GpuResult>? gpu)
+    /// <summary>
+    /// Gaming never redistributes skipped categories (missing GPU/storage scores 0)
+    /// and excludes FP64. Productivity and Balanced include FP64 and redistribute skips.
+    /// </summary>
+    public static (double Gaming, double Productivity, double Balanced) Composite(
+        List<CpuResult> cpu, List<MemoryResult> mem, List<StorageResult> storage, List<GpuResult>? gpu)
     {
-        double cpu1T = AverageScore(cpu.Where(r => r.TestName.EndsWith("(1T)")).Select(r => ScoreOne(r.TestName, r.Value)));
-        double cpuNT = AverageScore(cpu.Where(r => r.TestName.EndsWith("(nT)")).Select(r => ScoreOne(r.TestName, r.Value)));
-        double memScore = AverageScore(mem.Select(r => ScoreOne(r.TestName, r.Value)));
+        double cpu1T = Average(cpu.Select(r => (r.Test, r.Value)), ScoreBucket.Cpu1T);
+        double cpuNT = Average(cpu.Select(r => (r.Test, r.Value)), ScoreBucket.CpuNT);
+        double memScore = Average(mem.Select(r => (r.Test, r.Value)));
 
         bool hasStorage = storage.Count > 0;
-        double storScore = hasStorage ? AverageScore(storage.Select(r => ScoreOne(r.TestName, r.Value))) : 0;
+        double storScore = hasStorage ? Average(storage.Select(r => (r.Test, r.Value))) : 0;
 
-        // Only score primary GPU tests that actually ran (exclude "unsupported" and secondary GPUs)
-        var primaryGpu = gpu?.Where(r => r.IsPrimary && r.Value > 0).ToList();
-        bool hasGpu = primaryGpu != null && primaryGpu.Count > 0;
-        double gpuScore = hasGpu ? AverageScore(primaryGpu!.Select(r => ScoreOne(r.TestName, r.Value))) : 0;
+        var primary = gpu?.Where(r => r.IsPrimary && !r.Unsupported && r.Value > 0).ToList() ?? [];
+        bool hasGpu = primary.Count > 0;
+        var gpuPairs = primary.Select(r => (r.Test, r.Value));
+        double gpuNoFp64 = hasGpu ? Average(gpuPairs, exclude: ScoreBucket.GpuFp64) : 0;
+        double gpuFull = hasGpu ? Average(gpuPairs) : 0;
 
-        double[] scores = [cpu1T, cpuNT, memScore, storScore, gpuScore];
+        return (
+            Weighted(GamingWeights, cpu1T, cpuNT, memScore, storScore, gpuNoFp64, hasStorage, hasGpu, redistribute: false),
+            Weighted(ProdWeights, cpu1T, cpuNT, memScore, storScore, gpuFull, hasStorage, hasGpu, redistribute: true),
+            Weighted(BalancedWeights, cpu1T, cpuNT, memScore, storScore, gpuFull, hasStorage, hasGpu, redistribute: true));
+    }
+
+    private static double Weighted(
+        double[] w, double cpu1T, double cpuNT, double mem, double stor, double gpu,
+        bool hasStorage, bool hasGpu, bool redistribute)
+    {
+        double[] scores = [cpu1T, cpuNT, mem, stor, gpu];
         bool[] active = [true, true, true, hasStorage, hasGpu];
 
-        double Calc(double[] weights)
+        if (!redistribute)
         {
-            // Redistribute weight of skipped categories proportionally
-            double activeSum = 0;
-            for (int i = 0; i < 5; i++) if (active[i]) activeSum += weights[i];
             double total = 0;
-            for (int i = 0; i < 5; i++) if (active[i]) total += scores[i] * weights[i] / activeSum;
+            for (int i = 0; i < 5; i++)
+                total += scores[i] * w[i];
             return total;
         }
 
-        return (Calc(GamingWeights), Calc(ProdWeights), Calc(BalancedWeights));
+        double activeSum = 0;
+        for (int i = 0; i < 5; i++)
+            if (active[i]) activeSum += w[i];
+
+        double redistributed = 0;
+        for (int i = 0; i < 5; i++)
+            if (active[i]) redistributed += scores[i] * w[i] / activeSum;
+        return redistributed;
     }
 
-    private static double AverageScore(IEnumerable<double> scores)
+    private static double Average(IEnumerable<(BenchTest Test, double Value)> results, ScoreBucket? only = null, ScoreBucket? exclude = null)
     {
-        var list = scores.ToList();
-        return list.Count > 0 ? list.Average() : 0;
+        var scores = new List<double>();
+        foreach (var (test, value) in results)
+        {
+            var bucket = Spec(test).Bucket;
+            if (only is { } o && bucket != o)
+                continue;
+            if (exclude is { } e && bucket == e)
+                continue;
+            scores.Add(ScoreOne(test, value));
+        }
+        return scores.Count > 0 ? scores.Average() : 0;
     }
 }

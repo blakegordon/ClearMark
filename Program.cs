@@ -1,7 +1,7 @@
 using ClearMark;
 using Spectre.Console;
 
-AnsiConsole.MarkupLine("[bold cyan]ClearMark v1.0[/] — Transparent System Benchmark");
+AnsiConsole.MarkupLine($"[bold cyan]{AppInfo.Label}[/] — Transparent System Benchmark");
 AnsiConsole.MarkupLine("[dim]https://github.com/blakegordon/ClearMark — All scoring formulas are visible in source code.[/]");
 AnsiConsole.WriteLine();
 
@@ -21,27 +21,27 @@ List<MemoryResult> memResults = [];
 List<LatencyLadderPoint> ladderResults = [];
 List<StorageResult> storageResults = [];
 List<GpuResult>? gpuResults = null;
+string? storageError = null;
 
 AnsiConsole.Status().Start("Running...", ctx =>
 {
     ctx.Spinner(Spinner.Known.Dots);
 
-    // CPU
     cpuResults = CpuBenchmark.Run(status => ctx.Status(status));
-
-    // Memory
     memResults = MemoryBenchmark.Run(status => ctx.Status(status));
-
-    // Latency Ladder
     ladderResults = MemoryBenchmark.RunLatencyLadder(status => ctx.Status(status));
 
-    // Storage
     if (!skipStorage)
-        storageResults = StorageBenchmark.Run(status => ctx.Status(status));
+    {
+        try { storageResults = StorageBenchmark.Run(status => ctx.Status(status)); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            storageError = ex.Message;
+        }
+    }
 
-    // GPU
     if (!skipGpu)
-        gpuResults = GpuBenchmark.Run(status => ctx.Status(status), hw.GpuName);
+        gpuResults = GpuBenchmark.Run(status => ctx.Status(status));
 });
 
 // ── 3. Display results ──────────────────────────────────────────────────
@@ -54,7 +54,9 @@ Report.PrintCpu(cpuResults);
 Report.PrintMemory(memResults);
 Report.PrintLatencyLadder(ladderResults);
 
-if (storageResults.Count > 0)
+if (storageError is not null)
+    AnsiConsole.MarkupLine($"[red]Storage tests failed:[/] {Markup.Escape(storageError)}\n");
+else if (storageResults.Count > 0)
     Report.PrintStorage(storageResults);
 else
     AnsiConsole.MarkupLine("[dim]Storage tests skipped (--skip-storage)[/]\n");

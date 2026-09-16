@@ -1,89 +1,7 @@
-# ClearMark
+"""Generate docs/output.svg from the reference-machine sample text."""
+from pathlib import Path
 
-**Transparent System Benchmark for Windows**
-
-ClearMark measures CPU, memory, storage, and GPU performance with every scoring formula visible in source code. No black boxes, no hidden weights — just honest numbers you can audit and verify.
-
-## Quick Start
-
-```
-ClearMark.exe
-```
-
-That's it. ClearMark detects your hardware and runs all benchmarks automatically. Results are printed as a formatted report with scores relative to a mid-range 2024 desktop baseline (score of 100).
-
-### Options
-
-| Flag | Effect |
-|---|---|
-| `--skip-storage` | Skip storage benchmarks (useful for quick runs) |
-| `--skip-gpu` | Skip GPU benchmarks (useful if no DX12 GPU) |
-
-## What It Measures
-
-### CPU (8 tests)
-| Test | What | 1T + nT |
-|---|---|---|
-| **Integer** | Sieve of Eratosthenes (ALU, branching, L2 cache), repeated ≥150 ms | ✓ |
-| **Float** | 256×256 dense matrix multiply (FMA / cache) | ✓ |
-| **Crypto** | SHA-256 hashing (hardware acceleration where available) | ✓ |
-| **Compression** | Brotli Fastest **compress only** of incompressible random data | ✓ |
-
-### Memory (5 tests)
-| Test | What |
-|---|---|
-| **Seq. Bandwidth (1T)** | Pinned P-core sequential read + NT-store write (STREAM 2×) |
-| **Seq. Bandwidth (nT)** | All-core, NUMA first-touch, pinned threads, separate read/write arrays |
-| **Copy Bandwidth (1T)** | Pinned P-core AVX NT-store copy (STREAM 2×, same kernel as nT) |
-| **Copy Bandwidth (nT)** | All-core AVX NT-store copy with processor-group pinning |
-| **Random Latency** | Single-cycle pointer-chase (one node per cache line) at `max(4× L3, 128 MB)` |
-
-Plus a **latency ladder** from 4 KB through that same RAM working set. Bars are colored from detected L1/L2/L3 sizes.
-
-### Storage (4 tests)
-| Test | What |
-|---|---|
-| **Seq. Read / Write** | 4 GB unbuffered sequential I/O at **QD1** (`File.OpenHandle` + `FILE_FLAG_NO_BUFFERING`) |
-| **4K Random Read / Write** | 4 KB random I/O at **QD1** |
-
-QD1 unbuffered I/O is the intended test (desktop snappiness, not a queued saturation run). The **host** can cap the drive well below its marketing peak — CPU, chipset, and PCIe generation/lane count included. CrystalDiskMark QD32 numbers on a different bus are not a target.
-
-### GPU (3 tests per device)
-| Test | What |
-|---|---|
-| **FP32** | 4K×4K Mandelbrot (single precision) |
-| **FP64** | 4K×4K Mandelbrot (double precision, if supported) |
-| **Integer** | 16M-thread xorshift-multiply hash chain |
-
-All GPUs with hardware DX12 support are benchmarked. Only the DXGI primary (display) GPU contributes to composite scores. FP64 is shown in the GPU table but is **not** part of the Gaming composite. Each GPU sample is one fat dispatch (~1 s of shader work, repeats inside the kernel) so launch/sync is not the thing being timed.
-
-## Composite Scores
-
-Three weighted profiles combine all category scores:
-
-| Profile | CPU 1T | CPU nT | Memory | Storage | GPU | Use Case |
-|---|---|---|---|---|---|---|
-| **Gaming** | 20% | 10% | 10% | 20% | 40% | Frame rates, game loading |
-| **Productivity** | 10% | 30% | 15% | 15% | 30% | Compilation, rendering, VMs |
-| **Balanced** | 20% | 20% | 20% | 20% | 20% | General-purpose |
-
-When storage or GPU is skipped (`--skip-storage` / `--skip-gpu`) or missing:
-
-- **Gaming** — that category scores **0** (40% GPU cannot be inflated by skipping the GPU). FP64 is excluded from Gaming even when it ran.
-- **Productivity** and **Balanced** — skipped-category weight is redistributed; FP64 is included in the GPU average.
-
-## Sample Output
-
-Scores are color-coded in the terminal: 🟢 **green** (≥ 90) · 🟡 **yellow** (70–89) · 🟠 **orange** (50–69) · 🔴 **red** (< 50). A score of **100 = mid-range 2024 desktop baseline**. Bold green is ≥ 120.
-
-This run is from the dual-Xeon Gold 6244 reference workstation (12-channel DDR4-2400, RTX 4090 + Titan V, SN850X on PCIe 3.0 x4):
-
-![ClearMark sample output](docs/output.svg)
-
-<details>
-<summary>Text version (for copy-paste)</summary>
-
-```
+LINES = r"""
 ClearMark v1.1 — Transparent System Benchmark
 https://github.com/blakegordon/ClearMark — All scoring formulas are visible in source code.
 
@@ -183,34 +101,131 @@ GPU: NVIDIA TITAN V (secondary — not scored)
 
 Score of 100 = mid-range 2024 desktop baseline. Above 100 = better than baseline.
 Gaming: skipped storage/GPU score 0 (not redistributed); FP64 excluded. Productivity/Balanced redistribute skips and include FP64.
-```
+""".strip("\n").split("\n")
 
-</details>
+# Ladder bar colors for this dual-Xeon (L1 32KB, L2 1MB, L3 ~25MB)
+LADDER_BAR = {
+    "4 KB": "gn", "8 KB": "gn", "16 KB": "gn", "32 KB": "gn",
+    "64 KB": "yl", "128 KB": "yl", "256 KB": "yl", "512 KB": "yl", "1 MB": "yl",
+    "2 MB": "or", "4 MB": "or", "8 MB": "or", "16 MB": "or",
+    "32 MB": "rd", "64 MB": "rd", "128 MB": "rd",
+}
 
-## Building from Source
 
-Requires [.NET 10 SDK](https://dot.net) on Windows.
+def score_cls(n: int) -> str:
+    if n >= 120:
+        return "bg"
+    if n >= 90:
+        return "gn"
+    if n >= 70:
+        return "yl"
+    if n >= 50:
+        return "or"
+    return "rd"
 
-```bash
-dotnet build --configuration Release
-```
 
-The compiled binary is at `bin/Release/net10.0-windows/ClearMark.exe`.
+def esc(s: str) -> str:
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace(" ", "&#160;")
 
-## Design Philosophy
 
-- **Transparent** — Every baseline, weight, and formula is a readable constant in [`Scoring.cs`](Scoring.cs). No obfuscation.
-- **Simple** — Each test is a short method you can read in a minute. Scoring is an enum + table, not string keys.
-- **Honest** — Median of multiple iterations. No cherry-picking. Lower-is-better metrics (latency) are scored correctly.
-- **NUMA-aware** — Multi-threaded memory tests use native memory allocation, first-touch page distribution, and thread pinning for accurate bandwidth measurement on multi-socket systems.
+def colorize(line: str) -> str:
+    stripped = line.rstrip()
+    if stripped.strip() in ("CPU", "Memory", "Storage") or stripped.strip().startswith("Memory Latency"):
+        cls = {"CPU": "yl bw", "Memory": "bl bw", "Storage": "gn bw"}.get(stripped.strip(), "bw")
+        pad = len(line) - len(line.lstrip(" "))
+        return esc(" " * pad) + f'<tspan class="{cls}">{esc(stripped.strip())}</tspan>'
 
-## Technical Details
+    if stripped.startswith("GPU:"):
+        # "GPU: NVIDIA GeForce RTX 4090 (primary)"
+        if "(primary)" in stripped:
+            name, rest = stripped.split(" (primary)", 1)
+            return f'<tspan class="yl bw">{esc(name)}</tspan>&#160;(primary){esc(rest)}'
+        if "(secondary" in stripped:
+            name, rest = stripped.split(" (secondary", 1)
+            return f'<tspan class="yl bw">{esc(name)}</tspan>&#160;(secondary{esc(rest)}'
+        return f'<tspan class="yl bw">{esc(stripped)}</tspan>'
 
-- **GPU compute** via [ComputeSharp](https://github.com/Sergio0694/ComputeSharp) (DX12 compute shaders)
-- **Storage I/O** via `File.OpenHandle` + `RandomAccess` with `FILE_FLAG_NO_BUFFERING` — bypasses OS cache; QD1
-- **Memory bandwidth** via `NativeMemory.AlignedAlloc` + `SetThreadGroupAffinity` + AVX non-temporal stores
-- **Console output** via [Spectre.Console](https://spectreconsole.net/) for rich table formatting
+    if stripped.strip() == "Composite Scores":
+        pad = len(line) - len(line.lstrip(" "))
+        return esc(" " * pad) + '<tspan class="bw">Composite&#160;Scores</tspan>'
 
-## License
+    if stripped.startswith("  L1"):
+        return '&#160;&#160;<tspan class="gn">L1</tspan>&#160;│&#160;<tspan class="yl">L2</tspan>&#160;│&#160;<tspan class="or">L3</tspan>&#160;│&#160;<tspan class="rd">RAM</tspan>'
 
-[MIT](LICENSE)
+    if stripped.startswith("ClearMark v1.1"):
+        return '<tspan class="cy">ClearMark&#160;v1.1</tspan>&#160;—&#160;Transparent&#160;System&#160;Benchmark'
+
+    if stripped.startswith("https://"):
+        return f'<tspan class="dm">{esc(stripped)}</tspan>'
+
+    if stripped.startswith("Score of 100") or stripped.startswith("Gaming: skipped"):
+        return f'<tspan class="dm">{esc(stripped)}</tspan>'
+
+    # Ladder data rows: color the bar
+    if stripped.startswith("│ ") and " ns │" in stripped and "█" in stripped:
+        label = stripped[2:13].strip()
+        cls = LADDER_BAR.get(label, "rd")
+        pre, bar_and_rest = stripped.split("│ ", 2)[0], stripped
+        # split at bar
+        i = stripped.index("█")
+        j = stripped.rindex("█") + 1
+        return esc(stripped[:i]) + f'<tspan class="{cls}">{esc(stripped[i:j])}</tspan>' + esc(stripped[j:])
+
+    # Score column: "│    72 │" (3 seps) or composite "║   170 ║ weights ║" (4 seps)
+    for sep in ("│", "║"):
+        nsep = stripped.count(sep)
+        if nsep >= 3 and "Score" not in stripped and "Profile" not in stripped and "Test" not in stripped:
+            parts = stripped.rsplit(sep, 3 if nsep >= 4 else 2)
+            for i in range(len(parts) - 1, 0, -1):
+                token = parts[i].strip().replace(",", "")
+                if token.lstrip("-").isdigit():
+                    n = int(token)
+                    cls = score_cls(n)
+                    rebuilt = esc(parts[0])
+                    for j in range(1, len(parts)):
+                        rebuilt += sep
+                        if j == i:
+                            rebuilt += f'<tspan class="{cls}">{esc(parts[j])}</tspan>'
+                        else:
+                            rebuilt += esc(parts[j])
+                    return rebuilt
+
+    return esc(line)
+
+
+def main() -> None:
+    lh = 17
+    top = 22
+    height = top + lh * len(LINES) + 16
+    width = 760
+    out = []
+    out.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}">')
+    out.append("  <style>")
+    out.append("    text { font-family: 'Cascadia Code','Consolas','SF Mono','Courier New',monospace; font-size: 13px; fill: #ccc; }")
+    out.append("    .cy { fill: #56b6c2; font-weight: bold; }")
+    out.append("    .dm { fill: #777; }")
+    out.append("    .bw { font-weight: bold; }")
+    out.append("    .yl { fill: #e5c07b; }")
+    out.append("    .bl { fill: #61afef; }")
+    out.append("    .gn { fill: #98c379; }")
+    out.append("    .bg { fill: #50fa7b; font-weight: bold; }")
+    out.append("    .or { fill: #d19a66; }")
+    out.append("    .rd { fill: #e06c75; }")
+    out.append("  </style>")
+    out.append('  <rect width="100%" height="100%" rx="8" fill="#1e1e1e"/>')
+    out.append('  <g xml:space="preserve">')
+    y = top
+    for line in LINES:
+        inner = colorize(line) if line.strip() else ""
+        if line.strip():
+            out.append(f'    <text x="16" y="{y}">{inner}</text>')
+        y += lh
+    out.append("  </g>")
+    out.append("</svg>")
+    dest = Path(__file__).with_name("output.svg")
+    dest.write_text("\n".join(out) + "\n", encoding="utf-8")
+    print(f"wrote {dest} ({height}px, {len(LINES)} lines)")
+
+
+if __name__ == "__main__":
+    main()

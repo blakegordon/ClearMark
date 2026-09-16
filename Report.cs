@@ -1,4 +1,5 @@
 using Spectre.Console;
+using Spectre.Console.Rendering;
 
 namespace ClearMark;
 
@@ -6,15 +7,24 @@ internal static class Report
 {
     public static void PrintHeader(HardwareInfo hw)
     {
-        var panel = new Panel(
-            new Rows(
-                new Markup($"[bold]CPU:[/]  {Markup.Escape(hw.CpuName)} ({hw.Cores}C/{hw.Threads}T, {hw.Architecture})"),
-                new Markup($"[bold]RAM:[/]  {FormatBytes(hw.TotalRamBytes)} @ {Markup.Escape(hw.RamSpeed)}"),
-                new Markup($"[bold]GPU:[/]  {Markup.Escape(hw.GpuName)}"),
-                new Markup($"[bold]Disk:[/] {Markup.Escape(hw.OsDrive)}"),
-                new Markup($"[bold]OS:[/]   {Markup.Escape(hw.OsVersion)}")))
+        int nameWidth = Math.Max(hw.OsDrive.Length, hw.Gpus.Max(g => g.Name.Length));
+        nameWidth = Math.Max(nameWidth, hw.OsVersion.Length + 4);
+        var rows = new List<IRenderable>
         {
-            Header = new PanelHeader("[bold cyan]ClearMark v1.0[/]"),
+            new Markup($"[bold]CPU:[/]  {Markup.Escape(hw.CpuName)} ({hw.Cores}C/{hw.Threads}T, {hw.Architecture})"),
+            new Markup($"[bold]RAM:[/]  {FormatBytes(hw.TotalRamBytes)} @ {Markup.Escape(hw.RamSpeed)}"),
+        };
+        foreach (var gpu in hw.Gpus)
+        {
+            rows.Add(new Markup(
+                $"[bold]GPU:[/]  {Markup.Escape(gpu.Name.PadRight(nameWidth))}{FormatPcie(gpu.Pcie)}{FormatDriver(gpu.Driver)}"));
+        }
+        rows.Add(new Markup($"[bold]Disk:[/] {Markup.Escape(hw.OsDrive.PadRight(nameWidth))}{FormatPcie(hw.DiskPcie)}"));
+        rows.Add(new Markup($"[bold]OS:[/]   {Markup.Escape(hw.OsVersion)}"));
+
+        var panel = new Panel(new Rows([.. rows]))
+        {
+            Header = new PanelHeader($"[bold cyan]{AppInfo.Label}[/]"),
             Border = BoxBorder.Double,
             Padding = new Padding(2, 0, 2, 0)
         };
@@ -29,10 +39,7 @@ internal static class Report
             .AddColumn(new TableColumn("Score").RightAligned());
 
         foreach (var r in results)
-        {
-            double score = Scoring.ScoreOne(r.TestName, r.Value);
-            table.AddRow(r.TestName, $"{r.Value:N0} {r.Unit}", ScoreMarkup(score));
-        }
+            table.AddRow(FormatResult(r.Test, r.Value));
 
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();
@@ -45,11 +52,7 @@ internal static class Report
             .AddColumn(new TableColumn("Score").RightAligned());
 
         foreach (var r in results)
-        {
-            double score = Scoring.ScoreOne(r.TestName, r.Value);
-            string formatted = r.TestName.Contains("Latency") ? $"{r.Value:N1} {r.Unit}" : $"{r.Value:N0} {r.Unit}";
-            table.AddRow(r.TestName, formatted, ScoreMarkup(score));
-        }
+            table.AddRow(FormatResult(r.Test, r.Value));
 
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();
@@ -62,10 +65,7 @@ internal static class Report
             .AddColumn(new TableColumn("Score").RightAligned());
 
         foreach (var r in results)
-        {
-            double score = Scoring.ScoreOne(r.TestName, r.Value);
-            table.AddRow(r.TestName, $"{r.Value:N0} {r.Unit}", ScoreMarkup(score));
-        }
+            table.AddRow(FormatResult(r.Test, r.Value));
 
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();
@@ -83,12 +83,12 @@ internal static class Report
         {
             int barLen = (int)(p.LatencyNs / maxLatency * 30);
             string bar = new('█', Math.Max(1, barLen));
-            string color = p.SizeKB <= 32 ? "green" : p.SizeKB <= 512 ? "yellow" : p.SizeKB <= 8192 ? "orange3" : "red";
+            string color = LadderColor(p.SizeKB);
             table.AddRow(p.SizeLabel, $"{p.LatencyNs:N1} ns", $"[{color}]{bar}[/]");
         }
 
         AnsiConsole.Write(table);
-        AnsiConsole.MarkupLine("[dim]  L1 ≈ green │ L2 ≈ yellow │ L3 ≈ orange │ RAM ≈ red[/]");
+        AnsiConsole.MarkupLine("  [green]L1[/] │ [yellow]L2[/] │ [orange3]L3[/] │ [red]RAM[/]");
         AnsiConsole.WriteLine();
     }
 
@@ -111,13 +111,12 @@ internal static class Report
 
             foreach (var r in group)
             {
-                if (r.Value == 0 && r.Unit.Contains("N/A"))
+                if (r.Unsupported)
                 {
-                    table.AddRow(r.TestName, "[dim]unsupported[/]", "[dim]—[/]");
+                    table.AddRow(Scoring.Spec(r.Test).Name, "[dim]unsupported[/]", "[dim]—[/]");
                     continue;
                 }
-                double score = Scoring.ScoreOne(r.TestName, r.Value);
-                table.AddRow(r.TestName, $"{r.Value:N0} {r.Unit}", ScoreMarkup(score));
+                table.AddRow(FormatResult(r.Test, r.Value));
             }
 
             AnsiConsole.Write(table);
@@ -139,9 +138,34 @@ internal static class Report
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[dim]Score of 100 = mid-range 2024 desktop baseline. Above 100 = better than baseline.[/]");
+        AnsiConsole.MarkupLine("[dim]Gaming: skipped storage/GPU score 0 (not redistributed); FP64 excluded. Productivity/Balanced redistribute skips and include FP64.[/]");
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    private static string LadderColor(int sizeKB)
+    {
+        long bytes = (long)sizeKB * 1024;
+        if (bytes <= CpuTopology.MaxL1Bytes) return "green";
+        if (bytes <= CpuTopology.MaxL2Bytes) return "yellow";
+        if (CpuTopology.MaxL3Bytes > 0 && bytes <= CpuTopology.MaxL3Bytes) return "orange3";
+        if (CpuTopology.MaxL3Bytes == 0 && bytes <= 8L * 1024 * 1024) return "orange3";
+        return "red";
+    }
+
+    private static string[] FormatResult(BenchTest test, double value)
+    {
+        var spec = Scoring.Spec(test);
+        double score = Scoring.ScoreOne(test, value);
+        string formatted = spec.LowerIsBetter ? $"{value:N1} {spec.Unit}" : $"{value:N0} {spec.Unit}";
+        return [spec.Name, formatted, ScoreMarkup(score)];
+    }
+
+    private static string FormatDriver(string driver)
+        => string.IsNullOrEmpty(driver) || driver == "Unknown" ? "" : $"  [dim]{Markup.Escape(driver)}[/]";
+
+    private static string FormatPcie(string? pcie)
+        => string.IsNullOrEmpty(pcie) ? "" : $"  {Markup.Escape(pcie)}";
 
     private static string ScoreMarkup(double score)
     {
