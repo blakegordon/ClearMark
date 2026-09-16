@@ -73,7 +73,7 @@ Scores are color-coded in the terminal: 🟢 **green** (≥ 90) · 🟡 **yellow
 
 This run is from a dual-Xeon workstation with an RTX 4090 and a secondary Titan V:
 
-![ClearMark sample output](docs/sample-output.svg)
+![ClearMark sample output](docs/output.svg)
 
 <details>
 <summary>Text version (for copy-paste)</summary>
