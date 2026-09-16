@@ -3,13 +3,13 @@ using System.Runtime.InteropServices;
 
 namespace ClearMark;
 
-public record HardwareInfo(
+internal record HardwareInfo(
     string CpuName, int Cores, int Threads, string Architecture,
     long TotalRamBytes, string RamSpeed,
     string GpuName, string GpuDriver,
     string OsDrive, string OsVersion);
 
-public static class SystemInfo
+internal static class SystemInfo
 {
     public static HardwareInfo Detect()
     {
@@ -36,7 +36,7 @@ public static class SystemInfo
                 threads = totalThreads;
             }
         }
-        catch { /* WMI may fail on some systems */ }
+        catch (Exception ex) when (ex is ManagementException or System.Runtime.InteropServices.COMException or UnauthorizedAccessException) { }
 
         try
         {
@@ -47,7 +47,7 @@ public static class SystemInfo
                 break;
             }
         }
-        catch { }
+        catch (Exception ex) when (ex is ManagementException or System.Runtime.InteropServices.COMException or UnauthorizedAccessException) { }
 
         try
         {
@@ -58,7 +58,7 @@ public static class SystemInfo
                 gpuDriver = obj["DriverVersion"]?.ToString() ?? gpuDriver;
             }
         }
-        catch { }
+        catch (Exception ex) when (ex is ManagementException or System.Runtime.InteropServices.COMException or UnauthorizedAccessException) { }
 
         try
         {
@@ -68,7 +68,7 @@ public static class SystemInfo
             foreach (var obj in diskSearcher.Get())
                 osDrive = obj["Model"]?.ToString()?.Trim() ?? osDrive;
         }
-        catch { }
+        catch (Exception ex) when (ex is ManagementException or System.Runtime.InteropServices.COMException or UnauthorizedAccessException) { }
 
         var gcInfo = GC.GetGCMemoryInfo();
         return new HardwareInfo(

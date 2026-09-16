@@ -4,7 +4,7 @@ namespace ClearMark;
 /// Transparent scoring system. All weights and reference baselines are constants —
 /// anyone can read, audit, or modify them.
 /// </summary>
-public static class Scoring
+internal static class Scoring
 {
     // ── Reference baselines (≈ mid-range 2024 desktop) ──────────────────
     // Each value represents "good" performance; score = (yours / reference) × 100

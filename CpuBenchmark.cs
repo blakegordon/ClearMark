@@ -3,9 +3,9 @@ using System.Security.Cryptography;
 
 namespace ClearMark;
 
-public record CpuResult(string TestName, double Value, string Unit);
+internal record CpuResult(string TestName, double Value, string Unit);
 
-public static class CpuBenchmark
+internal static class CpuBenchmark
 {
     private const int Iterations = 5;
 

@@ -6,10 +6,10 @@ using System.Runtime.Intrinsics.X86;
 
 namespace ClearMark;
 
-public record MemoryResult(string TestName, double Value, string Unit);
-public record LatencyLadderPoint(string SizeLabel, int SizeKB, double LatencyNs);
+internal record MemoryResult(string TestName, double Value, string Unit);
+internal record LatencyLadderPoint(string SizeLabel, int SizeKB, double LatencyNs);
 
-public static class MemoryBenchmark
+internal static class MemoryBenchmark
 {
     private const int Iterations = 5;
     private const int ArraySizeMB = 256; // Large enough to exceed L3 cache

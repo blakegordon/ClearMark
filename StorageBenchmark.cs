@@ -4,9 +4,9 @@ using Microsoft.Win32.SafeHandles;
 
 namespace ClearMark;
 
-public record StorageResult(string TestName, double Value, string Unit);
+internal record StorageResult(string TestName, double Value, string Unit);
 
-public static class StorageBenchmark
+internal static class StorageBenchmark
 {
     private const int Iterations = 3; // Fewer iterations since storage tests are slow
     private const long TestFileSizeBytes = 4L * 1024 * 1024 * 1024; // 4 GB to defeat SSD caches
@@ -84,7 +84,8 @@ public static class StorageBenchmark
         }
         finally
         {
-            try { File.Delete(testFile); } catch { }
+            try { File.Delete(testFile); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
 
         return results;

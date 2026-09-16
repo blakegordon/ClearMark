@@ -2,7 +2,7 @@ using Spectre.Console;
 
 namespace ClearMark;
 
-public static class Report
+internal static class Report
 {
     public static void PrintHeader(HardwareInfo hw)
     {

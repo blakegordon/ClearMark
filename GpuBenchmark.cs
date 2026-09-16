@@ -1,9 +1,10 @@
 using ComputeSharp;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace ClearMark;
 
-public record GpuResult(string DeviceName, bool IsPrimary, string TestName, double Value, string Unit);
+internal record GpuResult(string DeviceName, bool IsPrimary, string TestName, double Value, string Unit);
 
 // ── Shader: Mandelbrot set (floating-point stress test) ──────────────
 // Each thread computes one pixel. Heavy on FP multiply/add.
@@ -72,7 +73,7 @@ public readonly partial struct IntHashShader(ReadWriteBuffer<uint> output, int i
     }
 }
 
-public static class GpuBenchmark
+internal static class GpuBenchmark
 {
     private const int Size = 4096;         // 4096×4096 = 16M threads
     private const int Pixels = Size * Size;
@@ -84,7 +85,7 @@ public static class GpuBenchmark
     {
         GraphicsDevice[] devices;
         try { devices = GraphicsDevice.QueryDevices(d => d.IsHardwareAccelerated).ToArray(); }
-        catch { return null; }
+        catch (Exception ex) when (ex is COMException or InvalidOperationException) { return null; }
 
         if (devices.Length == 0) return null;
 
@@ -125,7 +126,8 @@ public static class GpuBenchmark
                                            elapsed => Pixels / elapsed / 1e6);
                 results.Add(new GpuResult(name, isPrimary, "GPU FP64", val, "Mpix/s"));
             }
-            catch { results.Add(new GpuResult(name, isPrimary, "GPU FP64", 0, "N/A (unsupported)")); }
+            catch (Exception ex) when (ex is NotSupportedException or COMException or InvalidOperationException)
+            { results.Add(new GpuResult(name, isPrimary, "GPU FP64", 0, "N/A (unsupported)")); }
 
             // ── Integer: Hash mixing ────────────────────────────────────
             onStatus($"{label}GPU Integer (Hash 16M×10K)...");
