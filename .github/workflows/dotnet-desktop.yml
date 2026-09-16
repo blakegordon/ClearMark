@@ -36,4 +36,6 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         files: ClearMark-win-x64.zip
+        tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v-latest' }}
+        name: ${{ github.ref_type == 'tag' && github.ref_name || 'Manual Build (Latest)' }}
         generate_release_notes: true
