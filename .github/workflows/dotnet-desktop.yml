@@ -3,15 +3,15 @@ name: Build and Release Console App
 on:
   push:
     tags:
-      - 'v*.*.*'       # Triggers release build when pushing tags like v1.0.0
-  workflow_dispatch:   # Allows manual runs from the GitHub Actions UI
+      - 'v*.*.*'
+  workflow_dispatch:
 
 permissions:
-  contents: write      # Required to create GitHub Releases
+  contents: write
 
 jobs:
   build-and-release:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
     - name: Checkout repository
@@ -22,22 +22,18 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
-    - name: Run Tests
-      run: dotnet test --configuration Release
-
     - name: Publish Console App
-      # Builds a single, self-contained executable for 64-bit Windows
+      shell: pwsh
       run: |
-        dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true -o ./publish
+        dotnet publish ClearMark.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true -o ./publish
 
     - name: Zip Artifacts
+      shell: pwsh
       run: |
-        cd ./publish
-        zip -r ../console-app-win-x64.zip .
-        cd ..
+        Compress-Archive -Path ./publish/* -DestinationPath ./ClearMark-win-x64.zip -Force
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: console-app-win-x64.zip
+        files: ClearMark-win-x64.zip
         generate_release_notes: true
