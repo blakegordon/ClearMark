@@ -73,6 +73,11 @@ Scores are color-coded in the terminal: 🟢 **green** (≥ 90) · 🟡 **yellow
 
 This run is from a dual-Xeon workstation with an RTX 4090 and a secondary Titan V:
 
+![ClearMark sample output](docs/sample-output.svg)
+
+<details>
+<summary>Text version (for copy-paste)</summary>
+
 ```
 ClearMark v1.0 — Transparent System Benchmark
 https://github.com/blakegordon/ClearMark — All scoring formulas are visible in source code.
@@ -162,6 +167,8 @@ GPU: NVIDIA TITAN V (secondary — not scored)
 
 Score of 100 = mid-range 2024 desktop baseline. Above 100 = better than baseline.
 ```
+
+</details>
 
 ## Building from Source
 

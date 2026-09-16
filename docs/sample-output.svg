@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="1680">
+  <style>
+    text { font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace; font-size: 13px; fill: #ccc; }
+    .cyan { fill: #56b6c2; font-weight: bold; }
+    .dim { fill: #777; }
+    .bold { font-weight: bold; }
+    .yellow { fill: #e5c07b; }
+    .blue { fill: #61afef; }
+    .green { fill: #98c379; }
+    .bgreen { fill: #50fa7b; font-weight: bold; }
+    .orange { fill: #d19a66; }
+    .red { fill: #e06c75; }
+    .border { fill: #555; }
+  </style>
+  <rect width="100%" height="100%" rx="8" fill="#1e1e1e"/>
+
+  <!-- Header -->
+  <text x="16" y="30" class="cyan">ClearMark v1.0</text><text x="128" y="30"> — Transparent System Benchmark</text>
+  <text x="16" y="48" class="dim">https://github.com/blakegordon/ClearMark — All scoring formulas are visible in source code.</text>
+
+  <!-- System Info Box -->
+  <text x="16" y="78" class="border">╔═ClearMark v1.0══════════════════════════════════════════════════════╗</text>
+  <text x="16" y="96" class="border">║</text><text x="24" y="96">  CPU:  2x Intel(R) Xeon(R) Gold 6244 CPU @ 3.60GHz (16C/32T, X64) </text><text x="562" y="96" class="border"> ║</text>
+  <text x="16" y="114" class="border">║</text><text x="24" y="114">  RAM:  766.7 GB @ 2400 MHz                                        </text><text x="562" y="114" class="border"> ║</text>
+  <text x="16" y="132" class="border">║</text><text x="24" y="132">  GPU:  NVIDIA GeForce RTX 4090                                    </text><text x="562" y="132" class="border"> ║</text>
+  <text x="16" y="150" class="border">║</text><text x="24" y="150">  Disk: WD_BLACK SN850X 4000GB                                     </text><text x="562" y="150" class="border"> ║</text>
+  <text x="16" y="168" class="border">║</text><text x="24" y="168">  OS:   Microsoft Windows 10.0.22000                                </text><text x="562" y="168" class="border"> ║</text>
+  <text x="16" y="186" class="border">╚════════════════════════════════════════════════════════════════════╝</text>
+
+  <!-- CPU Table -->
+  <text x="180" y="218" class="yellow bold">CPU</text>
+  <text x="16" y="236" class="border">┌──────────────────┬───────────────┬───────┐</text>
+  <text x="16" y="254" class="border">│</text><text x="24" y="254"> Test             </text><text x="160" y="254" class="border">│</text><text x="168" y="254">        Result </text><text x="290" y="254" class="border">│</text><text x="298" y="254"> Score </text><text x="346" y="254" class="border">│</text>
+  <text x="16" y="272" class="border">├──────────────────┼───────────────┼───────┤</text>
+  <text x="16" y="290" class="border">│</text><text x="24" y="290"> Integer (1T)     </text><text x="160" y="290" class="border">│</text><text x="168" y="290">    1,971 Mops </text><text x="290" y="290" class="border">│</text><text x="310" y="290" class="orange">   66</text><text x="346" y="290" class="border"> │</text>
+  <text x="16" y="308" class="border">│</text><text x="24" y="308"> Integer (nT)     </text><text x="160" y="308" class="border">│</text><text x="168" y="308">   13,401 Mops </text><text x="290" y="308" class="border">│</text><text x="310" y="308" class="orange">   67</text><text x="346" y="308" class="border"> │</text>
+  <text x="16" y="326" class="border">│</text><text x="24" y="326"> Float (1T)       </text><text x="160" y="326" class="border">│</text><text x="168" y="326">    716 Mflops </text><text x="290" y="326" class="border">│</text><text x="310" y="326" class="red">   24</text><text x="346" y="326" class="border"> │</text>
+  <text x="16" y="344" class="border">│</text><text x="24" y="344"> Float (nT)       </text><text x="160" y="344" class="border">│</text><text x="168" y="344"> 11,205 Mflops </text><text x="290" y="344" class="border">│</text><text x="310" y="344" class="orange">   51</text><text x="346" y="344" class="border"> │</text>
+  <text x="16" y="362" class="border">│</text><text x="24" y="362"> Crypto (1T)      </text><text x="160" y="362" class="border">│</text><text x="168" y="362">      279 MB/s </text><text x="290" y="362" class="border">│</text><text x="310" y="362" class="red">   14</text><text x="346" y="362" class="border"> │</text>
+  <text x="16" y="380" class="border">│</text><text x="24" y="380"> Crypto (nT)      </text><text x="160" y="380" class="border">│</text><text x="168" y="380">    4,298 MB/s </text><text x="290" y="380" class="border">│</text><text x="310" y="380" class="red">   31</text><text x="346" y="380" class="border"> │</text>
+  <text x="16" y="398" class="border">│</text><text x="24" y="398"> Compression (1T) </text><text x="160" y="398" class="border">│</text><text x="168" y="398">      486 MB/s </text><text x="290" y="398" class="border">│</text><text x="310" y="398" class="red">   19</text><text x="346" y="398" class="border"> │</text>
+  <text x="16" y="416" class="border">│</text><text x="24" y="416"> Compression (nT) </text><text x="160" y="416" class="border">│</text><text x="168" y="416">    3,023 MB/s </text><text x="290" y="416" class="border">│</text><text x="310" y="416" class="red">   17</text><text x="346" y="416" class="border"> │</text>
+  <text x="16" y="434" class="border">└──────────────────┴───────────────┴───────┘</text>
+
+  <!-- Memory Table -->
+  <text x="170" y="466" class="blue bold">Memory</text>
+  <text x="16" y="484" class="border">┌─────────────────────┬──────────────┬───────┐</text>
+  <text x="16" y="502" class="border">│</text><text x="24" y="502"> Test                </text><text x="184" y="502" class="border">│</text><text x="192" y="502">       Result </text><text x="312" y="502" class="border">│</text><text x="320" y="502"> Score </text><text x="370" y="502" class="border">│</text>
+  <text x="16" y="520" class="border">├─────────────────────┼──────────────┼───────┤</text>
+  <text x="16" y="538" class="border">│</text><text x="24" y="538"> Seq. Bandwidth (1T) </text><text x="184" y="538" class="border">│</text><text x="192" y="538">   8,724 MB/s </text><text x="312" y="538" class="border">│</text><text x="332" y="538" class="red">   22</text><text x="370" y="538" class="border"> │</text>
+  <text x="16" y="556" class="border">│</text><text x="24" y="556"> Seq. Bandwidth (nT) </text><text x="184" y="556" class="border">│</text><text x="192" y="556"> 104,064 MB/s </text><text x="312" y="556" class="border">│</text><text x="332" y="556" class="bgreen">  130</text><text x="370" y="556" class="border"> │</text>
+  <text x="16" y="574" class="border">│</text><text x="24" y="574"> Random Latency      </text><text x="184" y="574" class="border">│</text><text x="192" y="574">      68.1 ns </text><text x="312" y="574" class="border">│</text><text x="332" y="574" class="green">  103</text><text x="370" y="574" class="border"> │</text>
+  <text x="16" y="592" class="border">│</text><text x="24" y="592"> Copy Bandwidth (1T) </text><text x="184" y="592" class="border">│</text><text x="192" y="592">   5,034 MB/s </text><text x="312" y="592" class="border">│</text><text x="332" y="592" class="red">   14</text><text x="370" y="592" class="border"> │</text>
+  <text x="16" y="610" class="border">│</text><text x="24" y="610"> Copy Bandwidth (nT) </text><text x="184" y="610" class="border">│</text><text x="192" y="610"> 137,330 MB/s </text><text x="312" y="610" class="border">│</text><text x="332" y="610" class="bgreen">  196</text><text x="370" y="610" class="border"> │</text>
+  <text x="16" y="628" class="border">└─────────────────────┴──────────────┴───────┘</text>
+
+  <!-- Latency Ladder -->
+  <text x="140" y="660" class="bold">Memory Latency Ladder</text>
+  <text x="16" y="678" class="border">┌─────────────┬─────────┬────────────────────────────────┐</text>
+  <text x="16" y="696" class="border">│</text><text x="24" y="696"> Working Set </text><text x="120" y="696" class="border">│</text><text x="128" y="696"> Latency </text><text x="192" y="696" class="border">│</text><text x="344" y="696" class="border">│</text>
+  <text x="16" y="714" class="border">├─────────────┼─────────┼────────────────────────────────┤</text>
+  <text x="16" y="732" class="border">│</text><text x="24" y="732"> 4 KB        </text><text x="120" y="732" class="border">│</text><text x="128" y="732">  1.2 ns </text><text x="192" y="732" class="border">│</text><text x="200" y="732" class="green"> █</text><text x="344" y="732" class="border">│</text>
+  <text x="16" y="750" class="border">│</text><text x="24" y="750"> 32 KB       </text><text x="120" y="750" class="border">│</text><text x="128" y="750">  1.2 ns </text><text x="192" y="750" class="border">│</text><text x="200" y="750" class="green"> █</text><text x="344" y="750" class="border">│</text>
+  <text x="16" y="768" class="border">│</text><text x="24" y="768"> 64 KB       </text><text x="120" y="768" class="border">│</text><text x="128" y="768">  2.2 ns </text><text x="192" y="768" class="border">│</text><text x="200" y="768" class="yellow"> █</text><text x="344" y="768" class="border">│</text>
+  <text x="16" y="786" class="border">│</text><text x="24" y="786"> 512 KB      </text><text x="120" y="786" class="border">│</text><text x="128" y="786">  4.1 ns </text><text x="192" y="786" class="border">│</text><text x="200" y="786" class="yellow"> █</text><text x="344" y="786" class="border">│</text>
+  <text x="16" y="804" class="border">│</text><text x="24" y="804"> 1 MB        </text><text x="120" y="804" class="border">│</text><text x="128" y="804">  5.4 ns </text><text x="192" y="804" class="border">│</text><text x="200" y="804" class="orange"> █</text><text x="344" y="804" class="border">│</text>
+  <text x="16" y="822" class="border">│</text><text x="24" y="822"> 4 MB        </text><text x="120" y="822" class="border">│</text><text x="128" y="822"> 17.9 ns </text><text x="192" y="822" class="border">│</text><text x="200" y="822" class="orange"> ██████</text><text x="344" y="822" class="border">│</text>
+  <text x="16" y="840" class="border">│</text><text x="24" y="840"> 16 MB       </text><text x="120" y="840" class="border">│</text><text x="128" y="840"> 25.0 ns </text><text x="192" y="840" class="border">│</text><text x="200" y="840" class="orange"> █████████</text><text x="344" y="840" class="border">│</text>
+  <text x="16" y="858" class="border">│</text><text x="24" y="858"> 32 MB       </text><text x="120" y="858" class="border">│</text><text x="128" y="858"> 45.7 ns </text><text x="192" y="858" class="border">│</text><text x="200" y="858" class="red"> ████████████████</text><text x="344" y="858" class="border">│</text>
+  <text x="16" y="876" class="border">│</text><text x="24" y="876"> 64 MB       </text><text x="120" y="876" class="border">│</text><text x="128" y="876"> 67.7 ns </text><text x="192" y="876" class="border">│</text><text x="200" y="876" class="red"> ████████████████████████</text><text x="344" y="876" class="border">│</text>
+  <text x="16" y="894" class="border">│</text><text x="24" y="894"> 128 MB      </text><text x="120" y="894" class="border">│</text><text x="128" y="894"> 81.6 ns </text><text x="192" y="894" class="border">│</text><text x="200" y="894" class="red"> ██████████████████████████████</text><text x="344" y="894" class="border">│</text>
+  <text x="16" y="912" class="border">└─────────────┴─────────┴────────────────────────────────┘</text>
+  <text x="16" y="930" class="dim">  </text><text x="30" y="930" class="green">L1</text><text x="48" y="930" class="dim"> ≈ green │ </text><text x="116" y="930" class="yellow">L2</text><text x="134" y="930" class="dim"> ≈ yellow │ </text><text x="210" y="930" class="orange">L3</text><text x="228" y="930" class="dim"> ≈ orange │ </text><text x="306" y="930" class="red">RAM</text><text x="332" y="930" class="dim"> ≈ red</text>
+
+  <!-- GPU 1: RTX 4090 -->
+  <text x="16" y="968" class="yellow bold">GPU: NVIDIA GeForce RTX 4090</text><text x="240" y="968"> (primary)</text>
+  <text x="16" y="986" class="border">┌─────────────┬───────────────┬───────┐</text>
+  <text x="16" y="1004" class="border">│</text><text x="24" y="1004"> Test        </text><text x="120" y="1004" class="border">│</text><text x="128" y="1004">        Result </text><text x="248" y="1004" class="border">│</text><text x="256" y="1004"> Score </text><text x="302" y="1004" class="border">│</text>
+  <text x="16" y="1022" class="border">├─────────────┼───────────────┼───────┤</text>
+  <text x="16" y="1040" class="border">│</text><text x="24" y="1040"> GPU FP32    </text><text x="120" y="1040" class="border">│</text><text x="128" y="1040"> 22,641 Mpix/s </text><text x="248" y="1040" class="border">│</text><text x="262" y="1040" class="bgreen">  283</text><text x="302" y="1040" class="border"> │</text>
+  <text x="16" y="1058" class="border">│</text><text x="24" y="1058"> GPU FP64    </text><text x="120" y="1058" class="border">│</text><text x="128" y="1058">    622 Mpix/s </text><text x="248" y="1058" class="border">│</text><text x="262" y="1058" class="bgreen">  415</text><text x="302" y="1058" class="border"> │</text>
+  <text x="16" y="1076" class="border">│</text><text x="24" y="1076"> GPU Integer </text><text x="120" y="1076" class="border">│</text><text x="128" y="1076">  30,583 GIOPS </text><text x="248" y="1076" class="border">│</text><text x="262" y="1076" class="bgreen">  306</text><text x="302" y="1076" class="border"> │</text>
+  <text x="16" y="1094" class="border">└─────────────┴───────────────┴───────┘</text>
+
+  <!-- GPU 2: Titan V -->
+  <text x="16" y="1126" class="yellow bold">GPU: NVIDIA TITAN V</text><text x="168" y="1126"> (secondary — not scored)</text>
+  <text x="16" y="1144" class="border">┌─────────────┬──────────────┬───────┐</text>
+  <text x="16" y="1162" class="border">│</text><text x="24" y="1162"> Test        </text><text x="120" y="1162" class="border">│</text><text x="128" y="1162">       Result </text><text x="240" y="1162" class="border">│</text><text x="248" y="1162"> Score </text><text x="298" y="1162" class="border">│</text>
+  <text x="16" y="1180" class="border">├─────────────┼──────────────┼───────┤</text>
+  <text x="16" y="1198" class="border">│</text><text x="24" y="1198"> GPU FP32    </text><text x="120" y="1198" class="border">│</text><text x="128" y="1198"> 6,585 Mpix/s </text><text x="240" y="1198" class="border">│</text><text x="256" y="1198" class="yellow">   82</text><text x="298" y="1198" class="border"> │</text>
+  <text x="16" y="1216" class="border">│</text><text x="24" y="1216"> GPU FP64    </text><text x="120" y="1216" class="border">│</text><text x="128" y="1216"> 3,170 Mpix/s </text><text x="240" y="1216" class="border">│</text><text x="250" y="1216" class="bgreen">2,113</text><text x="298" y="1216" class="border"> │</text>
+  <text x="16" y="1234" class="border">│</text><text x="24" y="1234"> GPU Integer </text><text x="120" y="1234" class="border">│</text><text x="128" y="1234">10,698 GIOPS </text><text x="240" y="1234" class="border">│</text><text x="256" y="1234" class="green">  107</text><text x="298" y="1234" class="border"> │</text>
+  <text x="16" y="1252" class="border">└─────────────┴──────────────┴───────┘</text>
+
+  <!-- Composite Scores -->
+  <text x="130" y="1290" class="bold">Composite Scores</text>
+  <text x="16" y="1308" class="border">╔══════════════╦═══════╦══════════════════════════════════════╗</text>
+  <text x="16" y="1326" class="border">║</text><text x="24" y="1326"> Profile      </text><text x="130" y="1326" class="border">║</text><text x="138" y="1326"> Score </text><text x="186" y="1326" class="border">║</text><text x="194" y="1326"> Weights (1T / nT / Mem / Stor / GPU) </text><text x="500" y="1326" class="border">║</text>
+  <text x="16" y="1344" class="border">╠══════════════╬═══════╬══════════════════════════════════════╣</text>
+  <text x="16" y="1362" class="border">║</text><text x="24" y="1362"> Gaming       </text><text x="130" y="1362" class="border">║</text><text x="142" y="1362" class="bgreen">  192</text><text x="186" y="1362" class="border"> ║</text><text x="194" y="1362"> 20% / 10% / 10% / 20% / 40%         </text><text x="500" y="1362" class="border"> ║</text>
+  <text x="16" y="1380" class="border">║</text><text x="24" y="1380"> Productivity </text><text x="130" y="1380" class="border">║</text><text x="142" y="1380" class="bgreen">  153</text><text x="186" y="1380" class="border"> ║</text><text x="194" y="1380"> 10% / 30% / 15% / 15% / 30%         </text><text x="500" y="1380" class="border"> ║</text>
+  <text x="16" y="1398" class="border">║</text><text x="24" y="1398"> Balanced     </text><text x="130" y="1398" class="border">║</text><text x="142" y="1398" class="bgreen">  125</text><text x="186" y="1398" class="border"> ║</text><text x="194" y="1398"> 20% / 20% / 20% / 20% / 20%         </text><text x="500" y="1398" class="border"> ║</text>
+  <text x="16" y="1416" class="border">╚══════════════╩═══════╩══════════════════════════════════════╝</text>
+
+  <text x="16" y="1450" class="dim">Score of 100 = mid-range 2024 desktop baseline. Above 100 = better than baseline.</text>
+
+  <!-- Color Legend -->
+  <text x="16" y="1490" class="dim">Score colors: </text><text x="120" y="1490" class="bgreen">■ ≥120</text><text x="188" y="1490" class="green">■ 90–119</text><text x="274" y="1490" class="yellow">■ 70–89</text><text x="352" y="1490" class="orange">■ 50–69</text><text x="428" y="1490" class="red">■ &lt;50</text>
+</svg>
