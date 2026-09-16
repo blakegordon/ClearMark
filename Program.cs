@@ -2,7 +2,7 @@ using Spectre.Console;
 using ClearMark;
 
 AnsiConsole.MarkupLine("[bold cyan]ClearMark v1.0[/] — Transparent System Benchmark");
-AnsiConsole.MarkupLine("[dim]https://github.com/clearmark — All scoring formulas are visible in source code.[/]");
+AnsiConsole.MarkupLine("[dim]https://github.com/blakegordon/ClearMark — All scoring formulas are visible in source code.[/]");
 AnsiConsole.WriteLine();
 
 bool skipStorage = args.Any(a => a.Equals("--skip-storage", StringComparison.OrdinalIgnoreCase));
