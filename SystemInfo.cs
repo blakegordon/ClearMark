@@ -67,10 +67,20 @@ internal static class SystemInfo
         try
         {
             string sysRoot = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
-            using var diskSearcher = new ManagementObjectSearcher($"SELECT Model FROM Win32_DiskDrive WHERE Index = 0");
+            string driveLetter = sysRoot.TrimEnd('\\');  // e.g. "C:"
 
-            foreach (var obj in diskSearcher.Get())
-                osDrive = obj["Model"]?.ToString()?.Trim() ?? osDrive;
+            // Walk WMI: LogicalDisk → Partition → DiskDrive
+            using var partAssoc = new ManagementObjectSearcher(
+                $"ASSOCIATORS OF {{Win32_LogicalDisk.DeviceID='{driveLetter}'}} WHERE AssocClass=Win32_LogicalDiskToPartition");
+
+            foreach (var partition in partAssoc.Get())
+            {
+                using var diskAssoc = new ManagementObjectSearcher(
+                    $"ASSOCIATORS OF {{Win32_DiskPartition.DeviceID='{partition["DeviceID"]}'}} WHERE AssocClass=Win32_DiskDriveToDiskPartition");
+
+                foreach (var disk in diskAssoc.Get())
+                    osDrive = disk["Model"]?.ToString()?.Trim() ?? osDrive;
+            }
         }
         catch (Exception ex) when (ex is ManagementException or COMException or UnauthorizedAccessException) { }
 
