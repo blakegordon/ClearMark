@@ -69,22 +69,95 @@ When a category is skipped (`--skip-storage` / `--skip-gpu`), its weight is redi
 
 ## Sample Output
 
+Scores are color-coded in the terminal: 🟢 **green** (≥ 90) · 🟡 **yellow** (70–89) · 🟠 **orange** (50–69) · 🔴 **red** (< 50). A score of **100 = mid-range 2024 desktop baseline**.
+
+This run is from a dual-Xeon workstation with an RTX 4090 and a secondary Titan V:
+
 ```
+ClearMark v1.0 — Transparent System Benchmark
+https://github.com/blakegordon/ClearMark — All scoring formulas are visible in source code.
+
 ╔═ClearMark v1.0══════════════════════════════════════════════════════╗
-║  CPU:  11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz (4C/8T, X64)  ║
-║  RAM:  7.7 GB @ 4267 MHz                                            ║
-║  GPU:  Intel(R) Iris(R) Xe Graphics                                 ║
-║  Disk: NVMe KBG40ZNS512G NVMe KIOXIA 512GB                          ║
-║  OS:   Microsoft Windows 10.0.19045                                 ║
-╚═════════════════════════════════════════════════════════════════════╝
+║  CPU:  2x Intel(R) Xeon(R) Gold 6244 CPU @ 3.60GHz (16C/32T, X64)  ║
+║  RAM:  766.7 GB @ 2400 MHz                                         ║
+║  GPU:  NVIDIA GeForce RTX 4090                                     ║
+║  Disk: WD_BLACK SN850X 4000GB                                      ║
+║  OS:   Microsoft Windows 10.0.22000                                ║
+╚════════════════════════════════════════════════════════════════════╝
+
+                    CPU                          Scores are color-coded:
+┌──────────────────┬───────────────┬───────┐     🟢 ≥ 120  bold green
+│ Test             │        Result │ Score │     🟢 90–119  green
+├──────────────────┼───────────────┼───────┤     🟡 70–89   yellow
+│ Integer (1T)     │    1,971 Mops │    66 │     🟠 50–69   orange
+│ Integer (nT)     │   13,401 Mops │    67 │     🔴 < 50    red
+│ Float (1T)       │    716 Mflops │    24 │
+│ Float (nT)       │ 11,205 Mflops │    51 │
+│ Crypto (1T)      │      279 MB/s │    14 │  ← Xeon lacks SHA-NI hardware
+│ Crypto (nT)      │    4,298 MB/s │    31 │
+│ Compression (1T) │      486 MB/s │    19 │
+│ Compression (nT) │    3,023 MB/s │    17 │
+└──────────────────┴───────────────┴───────┘
+
+                    Memory
+┌─────────────────────┬──────────────┬───────┐
+│ Test                │       Result │ Score │
+├─────────────────────┼──────────────┼───────┤
+│ Seq. Bandwidth (1T) │   8,724 MB/s │    22 │
+│ Seq. Bandwidth (nT) │ 104,064 MB/s │   130 │  ← 12 DDR4 channels saturated
+│ Random Latency      │      68.1 ns │   103 │
+│ Copy Bandwidth (1T) │   5,034 MB/s │    14 │
+│ Copy Bandwidth (nT) │ 137,330 MB/s │   196 │  ← AVX NT stores + thread pinning
+└─────────────────────┴──────────────┴───────┘
+
+                  Memory Latency Ladder
+┌─────────────┬─────────┬────────────────────────────────┐
+│ Working Set │ Latency │                                │
+├─────────────┼─────────┼────────────────────────────────┤
+│ 4 KB        │  1.2 ns │ █                              │  ← L1 (green)
+│ 8 KB        │  1.2 ns │ █                              │
+│ 16 KB       │  1.2 ns │ █                              │
+│ 32 KB       │  1.2 ns │ █                              │
+│ 64 KB       │  2.2 ns │ █                              │  ← L2 (yellow)
+│ 128 KB      │  2.7 ns │ █                              │
+│ 256 KB      │  3.0 ns │ █                              │
+│ 512 KB      │  4.1 ns │ █                              │
+│ 1 MB        │  5.4 ns │ █                              │  ← L3 (orange)
+│ 2 MB        │ 13.7 ns │ █████                          │
+│ 4 MB        │ 17.9 ns │ ██████                         │
+│ 8 MB        │ 20.8 ns │ ███████                        │
+│ 16 MB       │ 25.0 ns │ █████████                      │
+│ 32 MB       │ 45.7 ns │ ████████████████               │  ← RAM (red)
+│ 64 MB       │ 67.7 ns │ ████████████████████████       │
+│ 128 MB      │ 81.6 ns │ ██████████████████████████████ │
+└─────────────┴─────────┴────────────────────────────────┘
+  L1 ≈ green │ L2 ≈ yellow │ L3 ≈ orange │ RAM ≈ red
+
+GPU: NVIDIA GeForce RTX 4090 (primary)
+┌─────────────┬───────────────┬───────┐
+│ Test        │        Result │ Score │
+├─────────────┼───────────────┼───────┤
+│ GPU FP32    │ 22,641 Mpix/s │   283 │
+│ GPU FP64    │    622 Mpix/s │   415 │
+│ GPU Integer │  30,583 GIOPS │   306 │
+└─────────────┴───────────────┴───────┘
+
+GPU: NVIDIA TITAN V (secondary — not scored)
+┌─────────────┬──────────────┬───────┐
+│ Test        │       Result │ Score │
+├─────────────┼──────────────┼───────┤
+│ GPU FP32    │ 6,585 Mpix/s │    82 │
+│ GPU FP64    │ 3,170 Mpix/s │ 2,113 │  ← Volta 1:2 FP64:FP32 ratio
+│ GPU Integer │ 10,698 GIOPS │   107 │
+└─────────────┴──────────────┴───────┘
 
                        Composite Scores
 ╔══════════════╦═══════╦══════════════════════════════════════╗
 ║ Profile      ║ Score ║ Weights (1T / nT / Mem / Stor / GPU) ║
 ╠══════════════╬═══════╬══════════════════════════════════════╣
-║ Gaming       ║    28 ║ 20% / 10% / 10% / 20% / 40%          ║
-║ Productivity ║    30 ║ 10% / 30% / 15% / 15% / 30%          ║
-║ Balanced     ║    37 ║ 20% / 20% / 20% / 20% / 20%          ║
+║ Gaming       ║   192 ║ 20% / 10% / 10% / 20% / 40%          ║
+║ Productivity ║   153 ║ 10% / 30% / 15% / 15% / 30%          ║
+║ Balanced     ║   125 ║ 20% / 20% / 20% / 20% / 20%          ║
 ╚══════════════╩═══════╩══════════════════════════════════════╝
 
 Score of 100 = mid-range 2024 desktop baseline. Above 100 = better than baseline.

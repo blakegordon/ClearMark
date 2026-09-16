@@ -85,7 +85,8 @@ internal static class GpuBenchmark
     {
         GraphicsDevice[] devices;
         try { devices = GraphicsDevice.QueryDevices(d => d.IsHardwareAccelerated).ToArray(); }
-        catch (Exception ex) when (ex is COMException or InvalidOperationException) { return null; }
+        catch (Exception ex) when (ex is COMException or InvalidOperationException
+                                        or System.ComponentModel.Win32Exception) { return null; }
 
         if (devices.Length == 0) return null;
 
@@ -126,7 +127,8 @@ internal static class GpuBenchmark
                                            elapsed => Pixels / elapsed / 1e6);
                 results.Add(new GpuResult(name, isPrimary, "GPU FP64", val, "Mpix/s"));
             }
-            catch (Exception ex) when (ex is NotSupportedException or COMException or InvalidOperationException)
+            catch (Exception ex) when (ex is NotSupportedException or COMException or InvalidOperationException
+                                           or System.ComponentModel.Win32Exception)
             { results.Add(new GpuResult(name, isPrimary, "GPU FP64", 0, "N/A (unsupported)")); }
 
             // ── Integer: Hash mixing ────────────────────────────────────
