@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
@@ -39,12 +38,14 @@ internal static class MemoryBenchmark
     private static MemoryResult Measure(string name, string unit, Func<double> work)
     {
         var samples = new double[Iterations];
+
         for (int i = 0; i < Iterations; i++)
         {
             GC.Collect(2, GCCollectionMode.Forced, true, true);
             GC.WaitForPendingFinalizers();
             samples[i] = work();
         }
+
         Array.Sort(samples);
         return new MemoryResult(name, samples[Iterations / 2], unit);
     }
@@ -62,7 +63,7 @@ internal static class MemoryBenchmark
         // Write pass
         var sw = Stopwatch.StartNew();
         for (int i = 0; i < count; i++)
-            array[i] = (long)i;
+            array[i] = i;
         var writeTime = sw.Elapsed;
 
         // Read pass (sum to prevent elimination)
@@ -122,6 +123,7 @@ internal static class MemoryBenchmark
 
         onStatus("Memory Latency Ladder...");
         double prevLatency = 0;
+
         foreach (int kb in sizesKB)
         {
             string label = kb >= 1024 ? $"{kb / 1024} MB" : $"{kb} KB";
@@ -132,6 +134,7 @@ internal static class MemoryBenchmark
             prevLatency = latency;
             results.Add(new LatencyLadderPoint(label, kb, latency));
         }
+
         return results;
     }
 
@@ -164,6 +167,7 @@ internal static class MemoryBenchmark
         long totalBytes = count * sizeof(long);
 
         long* ptr = (long*)NativeMemory.AlignedAlloc((nuint)totalBytes, 64);
+
         try
         {
             // First-touch: pinned so each core faults pages on its local NUMA node
@@ -260,16 +264,20 @@ internal static class MemoryBenchmark
     private static void PinnedFor(int count, Action<int> body)
     {
         var threads = new Thread[count];
+
         for (int t = 0; t < count; t++)
         {
             int tid = t;
+
             threads[t] = new Thread(() =>
             {
                 SetThreadAffinityMask(GetCurrentThread(), new IntPtr(1L << tid));
                 body(tid);
             }) { IsBackground = true };
+
             threads[t].Start();
         }
+
         for (int t = 0; t < count; t++) threads[t].Join();
     }
 }

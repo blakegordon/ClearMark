@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Security.Cryptography;
 
@@ -86,7 +87,7 @@ internal static class CpuBenchmark
     private static double SieveOfEratosthenes(int limit)
     {
         long ops = 0;
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
         bool[] isComposite = new bool[limit + 1];
         for (int i = 2; (long)i * i <= limit; i++)
@@ -100,6 +101,7 @@ internal static class CpuBenchmark
                 }
             }
         }
+
         // Count primes to ensure the work isn't optimized away
         int count = 0;
         for (int i = 2; i <= limit; i++)
@@ -123,7 +125,7 @@ internal static class CpuBenchmark
                 b[i, j] = rng.NextDouble();
             }
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         for (int i = 0; i < n; i++)
             for (int k = 0; k < n; k++)
             {
@@ -145,7 +147,7 @@ internal static class CpuBenchmark
         byte[] data = new byte[bytes];
         Random.Shared.NextBytes(data);
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         byte[] hash = SHA256.HashData(data);
         sw.Stop();
 
@@ -160,9 +162,10 @@ internal static class CpuBenchmark
         Random.Shared.NextBytes(data);
 
         using var output = new MemoryStream();
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         using (var brotli = new BrotliStream(output, CompressionLevel.Fastest, leaveOpen: true))
             brotli.Write(data, 0, data.Length);
+
         sw.Stop();
 
         return bytes / sw.Elapsed.TotalSeconds / (1024.0 * 1024.0);

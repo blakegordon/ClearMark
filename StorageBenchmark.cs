@@ -1,6 +1,6 @@
+using Microsoft.Win32.SafeHandles;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using Microsoft.Win32.SafeHandles;
 
 namespace ClearMark;
 
@@ -120,6 +120,7 @@ internal static class StorageBenchmark
         // Allocate sector-aligned memory (required by FILE_FLAG_NO_BUFFERING)
         IntPtr buffer;
         unsafe { buffer = (IntPtr)NativeMemory.AlignedAlloc((nuint)blockSize, 4096); }
+
         try
         {
             // Fill with random data
@@ -158,6 +159,7 @@ internal static class StorageBenchmark
             long maxBlock = TestFileSizeBytes / blockSize - 1;
 
             var sw = Stopwatch.StartNew();
+
             for (long i = 0; i < blocksToWrite; i++)
             {
                 if (!sequential)
@@ -165,11 +167,12 @@ internal static class StorageBenchmark
                     long block = (long)(rng.NextDouble() * maxBlock);
                     SetFilePointerEx(handle, block * blockSize, out _, FILE_BEGIN);
                 }
+
                 WriteFile(handle, buffer, (uint)blockSize, out _, IntPtr.Zero);
             }
+
             FlushFileBuffers(handle);
             sw.Stop();
-
             return bytesWritten / sw.Elapsed.TotalSeconds / (1024.0 * 1024.0);
         }
         finally
@@ -191,6 +194,7 @@ internal static class StorageBenchmark
         // Allocate sector-aligned memory (required by FILE_FLAG_NO_BUFFERING)
         IntPtr buffer;
         unsafe { buffer = (IntPtr)NativeMemory.AlignedAlloc((nuint)blockSize, 4096); }
+
         try
         {
             uint flags = FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING
@@ -206,6 +210,7 @@ internal static class StorageBenchmark
             long maxBlock = fileSize / blockSize - 1;
 
             var sw = Stopwatch.StartNew();
+
             for (long i = 0; i < blocksToRead; i++)
             {
                 if (!sequential)
@@ -213,11 +218,12 @@ internal static class StorageBenchmark
                     long block = (long)(rng.NextDouble() * maxBlock);
                     SetFilePointerEx(handle, block * blockSize, out _, FILE_BEGIN);
                 }
+
                 ReadFile(handle, buffer, (uint)blockSize, out uint read, IntPtr.Zero);
                 if (read == 0) break;
             }
-            sw.Stop();
 
+            sw.Stop();
             return bytesRead / sw.Elapsed.TotalSeconds / (1024.0 * 1024.0);
         }
         finally

@@ -70,8 +70,7 @@ internal static class Scoring
     }
 
     /// <summary>Calculate Gaming/Productivity/Balanced composite scores.</summary>
-    public static (double Gaming, double Productivity, double Balanced) Composite(
-        List<CpuResult> cpu, List<MemoryResult> mem, List<StorageResult> storage, List<GpuResult>? gpu)
+    public static (double Gaming, double Productivity, double Balanced) Composite(List<CpuResult> cpu, List<MemoryResult> mem, List<StorageResult> storage, List<GpuResult>? gpu)
     {
         double cpu1T = AverageScore(cpu.Where(r => r.TestName.EndsWith("(1T)")).Select(r => ScoreOne(r.TestName, r.Value)));
         double cpuNT = AverageScore(cpu.Where(r => r.TestName.EndsWith("(nT)")).Select(r => ScoreOne(r.TestName, r.Value)));

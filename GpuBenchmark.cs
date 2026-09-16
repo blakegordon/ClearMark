@@ -1,4 +1,5 @@
 using ComputeSharp;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -84,20 +85,16 @@ internal static class GpuBenchmark
     public static List<GpuResult>? Run(Action<string> onStatus, string? primaryGpuName = null)
     {
         GraphicsDevice[] devices;
-        try { devices = GraphicsDevice.QueryDevices(d => d.IsHardwareAccelerated).ToArray(); }
-        catch (Exception ex) when (ex is COMException or InvalidOperationException
-                                        or System.ComponentModel.Win32Exception) { return null; }
+        try { devices = [.. GraphicsDevice.QueryDevices(d => d.IsHardwareAccelerated)]; }
+        catch (Exception ex) when (ex is COMException or InvalidOperationException or Win32Exception) { return null; }
 
         if (devices.Length == 0) return null;
 
         var results = new List<GpuResult>();
 
         // If we have a WMI-detected GPU name, match it; otherwise first device is primary
-        bool MatchesPrimary(string deviceName) =>
-            primaryGpuName != null
-                ? deviceName.Contains(primaryGpuName, StringComparison.OrdinalIgnoreCase)
-                    || primaryGpuName.Contains(deviceName, StringComparison.OrdinalIgnoreCase)
-                : false;
+        bool MatchesPrimary(string deviceName) => primaryGpuName != null && 
+            (deviceName.Contains(primaryGpuName, StringComparison.OrdinalIgnoreCase) || primaryGpuName.Contains(deviceName, StringComparison.OrdinalIgnoreCase));
 
         // If no device matches the WMI name, fall back to first device
         bool anyMatch = primaryGpuName != null && devices.Any(d => MatchesPrimary(d.Name));
@@ -127,8 +124,7 @@ internal static class GpuBenchmark
                                            elapsed => Pixels / elapsed / 1e6);
                 results.Add(new GpuResult(name, isPrimary, "GPU FP64", val, "Mpix/s"));
             }
-            catch (Exception ex) when (ex is NotSupportedException or COMException or InvalidOperationException
-                                           or System.ComponentModel.Win32Exception)
+            catch (Exception ex) when (ex is NotSupportedException or COMException or InvalidOperationException or Win32Exception)
             { results.Add(new GpuResult(name, isPrimary, "GPU FP64", 0, "N/A (unsupported)")); }
 
             // ── Integer: Hash mixing ────────────────────────────────────

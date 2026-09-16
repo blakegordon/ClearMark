@@ -1,5 +1,5 @@
-using Spectre.Console;
 using ClearMark;
+using Spectre.Console;
 
 AnsiConsole.MarkupLine("[bold cyan]ClearMark v1.0[/] — Transparent System Benchmark");
 AnsiConsole.MarkupLine("[dim]https://github.com/blakegordon/ClearMark — All scoring formulas are visible in source code.[/]");
@@ -48,10 +48,12 @@ AnsiConsole.Status().Start("Running...", ctx =>
 AnsiConsole.WriteLine();
 AnsiConsole.Write(new Rule("[bold cyan]Results[/]"));
 AnsiConsole.WriteLine();
+
 Report.PrintHeader(hw);
 Report.PrintCpu(cpuResults);
 Report.PrintMemory(memResults);
 Report.PrintLatencyLadder(ladderResults);
+
 if (storageResults.Count > 0)
     Report.PrintStorage(storageResults);
 else
@@ -68,5 +70,3 @@ var (gaming, productivity, balanced) = Scoring.Composite(cpuResults, memResults,
 Report.PrintComposite(gaming, productivity, balanced);
 
 AnsiConsole.WriteLine();
-AnsiConsole.MarkupLine("[dim]Press any key to exit...[/]");
-Console.ReadKey(true);

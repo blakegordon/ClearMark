@@ -33,6 +33,7 @@ internal static class Report
             double score = Scoring.ScoreOne(r.TestName, r.Value);
             table.AddRow(r.TestName, $"{r.Value:N0} {r.Unit}", ScoreMarkup(score));
         }
+
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();
     }
@@ -49,6 +50,7 @@ internal static class Report
             string formatted = r.TestName.Contains("Latency") ? $"{r.Value:N1} {r.Unit}" : $"{r.Value:N0} {r.Unit}";
             table.AddRow(r.TestName, formatted, ScoreMarkup(score));
         }
+
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();
     }
@@ -64,6 +66,7 @@ internal static class Report
             double score = Scoring.ScoreOne(r.TestName, r.Value);
             table.AddRow(r.TestName, $"{r.Value:N0} {r.Unit}", ScoreMarkup(score));
         }
+
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();
     }
@@ -75,13 +78,15 @@ internal static class Report
             .AddColumn(""); // bar chart
 
         double maxLatency = points.Max(p => p.LatencyNs);
+
         foreach (var p in points)
         {
             int barLen = (int)(p.LatencyNs / maxLatency * 30);
-            string bar = new string('█', Math.Max(1, barLen));
+            string bar = new('█', Math.Max(1, barLen));
             string color = p.SizeKB <= 32 ? "green" : p.SizeKB <= 512 ? "yellow" : p.SizeKB <= 8192 ? "orange3" : "red";
             table.AddRow(p.SizeLabel, $"{p.LatencyNs:N1} ns", $"[{color}]{bar}[/]");
         }
+
         AnsiConsole.Write(table);
         AnsiConsole.MarkupLine("[dim]  L1 ≈ green │ L2 ≈ yellow │ L3 ≈ orange │ RAM ≈ red[/]");
         AnsiConsole.WriteLine();
@@ -114,6 +119,7 @@ internal static class Report
                 double score = Scoring.ScoreOne(r.TestName, r.Value);
                 table.AddRow(r.TestName, $"{r.Value:N0} {r.Unit}", ScoreMarkup(score));
             }
+
             AnsiConsole.Write(table);
             AnsiConsole.WriteLine();
         }
@@ -125,7 +131,7 @@ internal static class Report
             .AddColumn("Profile").AddColumn(new TableColumn("Score").RightAligned())
             .AddColumn("Weights (1T / nT / Mem / Stor / GPU)");
 
-        string Fmt(double[] w) => string.Join(" / ", w.Select(v => $"{v:P0}"));
+        static string Fmt(double[] w) => string.Join(" / ", w.Select(v => $"{v:P0}"));
         table.AddRow("Gaming",       ScoreMarkup(gaming),       Fmt(Scoring.GamingWeights));
         table.AddRow("Productivity", ScoreMarkup(productivity), Fmt(Scoring.ProdWeights));
         table.AddRow("Balanced",     ScoreMarkup(balanced),     Fmt(Scoring.BalancedWeights));
@@ -147,6 +153,7 @@ internal static class Report
             >= 50  => "orange3",
             _      => "red"
         };
+
         return $"[{color}]{score:N0}[/]";
     }
 
