@@ -62,7 +62,7 @@ internal static class StorageBenchmark
     {
         var results = new List<StorageResult>();
         string dir = targetPath ?? Path.GetTempPath();
-        string testFile = Path.Combine(dir, "sysbench_storage_test.tmp");
+        string testFile = Path.Combine(dir, "clearmark_storage_test.tmp");
 
         try
         {

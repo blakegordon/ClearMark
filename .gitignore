@@ -26,4 +26,4 @@ Desktop.ini
 .DS_Store
 
 ## Benchmark artifacts
-sysbench_storage_test.tmp
+clearmark_storage_test.tmp
