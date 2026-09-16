@@ -10,7 +10,7 @@ internal static class Report
             new Rows(
                 new Markup($"[bold]CPU:[/]  {Markup.Escape(hw.CpuName)} ({hw.Cores}C/{hw.Threads}T, {hw.Architecture})"),
                 new Markup($"[bold]RAM:[/]  {FormatBytes(hw.TotalRamBytes)} @ {Markup.Escape(hw.RamSpeed)}"),
-                new Markup($"[bold]GPU:[/]  {Markup.Escape(hw.GpuName)}"),
+                new Markup($"[bold]GPU:[/]  {Markup.Escape(hw.GpuName)}{FormatDriver(hw.GpuDriver)}"),
                 new Markup($"[bold]Disk:[/] {Markup.Escape(hw.OsDrive)}"),
                 new Markup($"[bold]OS:[/]   {Markup.Escape(hw.OsVersion)}")))
         {
@@ -29,10 +29,7 @@ internal static class Report
             .AddColumn(new TableColumn("Score").RightAligned());
 
         foreach (var r in results)
-        {
-            double score = Scoring.ScoreOne(r.TestName, r.Value);
-            table.AddRow(r.TestName, $"{r.Value:N0} {r.Unit}", ScoreMarkup(score));
-        }
+            table.AddRow(FormatResult(r.Test, r.Value));
 
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();
@@ -45,11 +42,7 @@ internal static class Report
             .AddColumn(new TableColumn("Score").RightAligned());
 
         foreach (var r in results)
-        {
-            double score = Scoring.ScoreOne(r.TestName, r.Value);
-            string formatted = r.TestName.Contains("Latency") ? $"{r.Value:N1} {r.Unit}" : $"{r.Value:N0} {r.Unit}";
-            table.AddRow(r.TestName, formatted, ScoreMarkup(score));
-        }
+            table.AddRow(FormatResult(r.Test, r.Value));
 
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();
@@ -62,10 +55,7 @@ internal static class Report
             .AddColumn(new TableColumn("Score").RightAligned());
 
         foreach (var r in results)
-        {
-            double score = Scoring.ScoreOne(r.TestName, r.Value);
-            table.AddRow(r.TestName, $"{r.Value:N0} {r.Unit}", ScoreMarkup(score));
-        }
+            table.AddRow(FormatResult(r.Test, r.Value));
 
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();
@@ -111,13 +101,12 @@ internal static class Report
 
             foreach (var r in group)
             {
-                if (r.Value == 0 && r.Unit.Contains("N/A"))
+                if (r.Unsupported)
                 {
-                    table.AddRow(r.TestName, "[dim]unsupported[/]", "[dim]—[/]");
+                    table.AddRow(Scoring.Spec(r.Test).Name, "[dim]unsupported[/]", "[dim]—[/]");
                     continue;
                 }
-                double score = Scoring.ScoreOne(r.TestName, r.Value);
-                table.AddRow(r.TestName, $"{r.Value:N0} {r.Unit}", ScoreMarkup(score));
+                table.AddRow(FormatResult(r.Test, r.Value));
             }
 
             AnsiConsole.Write(table);
@@ -139,9 +128,21 @@ internal static class Report
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[dim]Score of 100 = mid-range 2024 desktop baseline. Above 100 = better than baseline.[/]");
+        AnsiConsole.MarkupLine("[dim]Gaming: skipped storage/GPU score 0 (not redistributed); FP64 excluded. Productivity/Balanced redistribute skips and include FP64.[/]");
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    private static string[] FormatResult(BenchTest test, double value)
+    {
+        var spec = Scoring.Spec(test);
+        double score = Scoring.ScoreOne(test, value);
+        string formatted = spec.LowerIsBetter ? $"{value:N1} {spec.Unit}" : $"{value:N0} {spec.Unit}";
+        return [spec.Name, formatted, ScoreMarkup(score)];
+    }
+
+    private static string FormatDriver(string driver)
+        => string.IsNullOrEmpty(driver) || driver == "Unknown" ? "" : $"  [dim]{Markup.Escape(driver)}[/]";
 
     private static string ScoreMarkup(double score)
     {

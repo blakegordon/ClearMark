@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 
 namespace ClearMark;
 
-internal record GpuResult(string DeviceName, bool IsPrimary, string TestName, double Value, string Unit);
+internal record GpuResult(string DeviceName, bool IsPrimary, BenchTest Test, double Value, bool Unsupported = false);
 
 // ── Shader: Mandelbrot set (floating-point stress test) ──────────────
 // Each thread computes one pixel. Heavy on FP multiply/add.
@@ -82,7 +82,7 @@ internal static class GpuBenchmark
     private const int HashIter = 10_000;
     private const int Runs = 3;
 
-    public static List<GpuResult>? Run(Action<string> onStatus, string? primaryGpuName = null)
+    public static List<GpuResult>? Run(Action<string> onStatus)
     {
         GraphicsDevice[] devices;
         try { devices = [.. GraphicsDevice.QueryDevices(d => d.IsHardwareAccelerated)]; }
@@ -91,18 +91,12 @@ internal static class GpuBenchmark
         if (devices.Length == 0) return null;
 
         var results = new List<GpuResult>();
-
-        // If we have a WMI-detected GPU name, match it; otherwise first device is primary
-        bool MatchesPrimary(string deviceName) => primaryGpuName != null && 
-            (deviceName.Contains(primaryGpuName, StringComparison.OrdinalIgnoreCase) || primaryGpuName.Contains(deviceName, StringComparison.OrdinalIgnoreCase));
-
-        // If no device matches the WMI name, fall back to first device
-        bool anyMatch = primaryGpuName != null && devices.Any(d => MatchesPrimary(d.Name));
+        GraphicsDevice primaryDevice = ResolvePrimary(devices);
 
         for (int g = 0; g < devices.Length; g++)
         {
             var device = devices[g];
-            bool isPrimary = anyMatch ? MatchesPrimary(device.Name) : g == 0;
+            bool isPrimary = device.Luid.Equals(primaryDevice.Luid);
             string name = device.Name;
             string label = devices.Length > 1 ? $"[[{name}]] " : "";
 
@@ -112,7 +106,7 @@ internal static class GpuBenchmark
             {
                 double val = MeasureMedian(() => device.For(Pixels, new MandelbrotShader(buf, Size, MaxIter)),
                                            elapsed => Pixels / elapsed / 1e6);
-                results.Add(new GpuResult(name, isPrimary, "GPU FP32", val, "Mpix/s"));
+                results.Add(new GpuResult(name, isPrimary, BenchTest.GpuFp32, val));
             }
 
             // ── FP64: Mandelbrot (double precision) ─────────────────────
@@ -122,10 +116,10 @@ internal static class GpuBenchmark
                 using var buf = device.AllocateReadWriteBuffer<int>(Pixels);
                 double val = MeasureMedian(() => device.For(Pixels, new MandelbrotFP64Shader(buf, Size, MaxIter)),
                                            elapsed => Pixels / elapsed / 1e6);
-                results.Add(new GpuResult(name, isPrimary, "GPU FP64", val, "Mpix/s"));
+                results.Add(new GpuResult(name, isPrimary, BenchTest.GpuFp64, val));
             }
             catch (Exception ex) when (ex is NotSupportedException or COMException or InvalidOperationException or Win32Exception)
-            { results.Add(new GpuResult(name, isPrimary, "GPU FP64", 0, "N/A (unsupported)")); }
+            { results.Add(new GpuResult(name, isPrimary, BenchTest.GpuFp64, 0, Unsupported: true)); }
 
             // ── Integer: Hash mixing ────────────────────────────────────
             onStatus($"{label}GPU Integer (Hash 16M×10K)...");
@@ -134,27 +128,40 @@ internal static class GpuBenchmark
                 double totalOps = (double)Pixels * HashIter * 7.0;
                 double val = MeasureMedian(() => device.For(Pixels, new IntHashShader(buf, HashIter)),
                                            elapsed => totalOps / elapsed / 1e9);
-                results.Add(new GpuResult(name, isPrimary, "GPU Integer", val, "GIOPS"));
+                results.Add(new GpuResult(name, isPrimary, BenchTest.GpuInteger, val));
             }
         }
 
         return results;
     }
 
+    /// <summary>DXGI adapter with the primary output, not the last WMI video controller.</summary>
+    private static GraphicsDevice ResolvePrimary(GraphicsDevice[] devices)
+    {
+        try
+        {
+            var dxgi = GraphicsDevice.GetDefault();
+            if (dxgi.IsHardwareAccelerated)
+            {
+                foreach (var d in devices)
+                {
+                    if (d.Luid.Equals(dxgi.Luid))
+                        return d;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is COMException or InvalidOperationException or Win32Exception) { }
+
+        return devices.OrderByDescending(d => d.DedicatedMemorySize).First();
+    }
+
     /// <summary>Warm-up + median of N runs. scoreFunc converts elapsed seconds to a result value.</summary>
     private static double MeasureMedian(Action dispatch, Func<double, double> scoreFunc)
-    {
-        dispatch(); // warm-up (shader compile + JIT)
-
-        var samples = new double[Runs];
-        for (int i = 0; i < Runs; i++)
+        => Measurement.Median(Runs, () =>
         {
             var sw = Stopwatch.StartNew();
             dispatch();
             sw.Stop();
-            samples[i] = scoreFunc(sw.Elapsed.TotalSeconds);
-        }
-        Array.Sort(samples);
-        return samples[Runs / 2];
-    }
+            return scoreFunc(sw.Elapsed.TotalSeconds);
+        }, warmup: dispatch);
 }
