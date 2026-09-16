@@ -36,15 +36,17 @@ That's it. ClearMark detects your hardware and runs all benchmarks automatically
 | **Seq. Bandwidth (nT)** | All-core, NUMA first-touch, pinned threads, separate read/write arrays |
 | **Copy Bandwidth (1T)** | Pinned P-core AVX NT-store copy (STREAM 2×, same kernel as nT) |
 | **Copy Bandwidth (nT)** | All-core AVX NT-store copy with processor-group pinning |
-| **Random Latency** | Single-cycle pointer-chase at `max(4× L3, 1 GB)` |
+| **Random Latency** | Single-cycle pointer-chase (one node per cache line) at `max(4× L3, 128 MB)` |
 
-Plus a **latency ladder** from 4 KB through `max(128 MB, 2× L3)`.
+Plus a **latency ladder** from 4 KB through that same RAM working set. Bars are colored from detected L1/L2/L3 sizes.
 
 ### Storage (4 tests)
 | Test | What |
 |---|---|
 | **Seq. Read / Write** | 4 GB unbuffered sequential I/O at **QD1** (`File.OpenHandle` + `FILE_FLAG_NO_BUFFERING`) |
-| **4K Random Read / Write** | 4 KB random I/O at **QD1** — desktop snappiness, not CrystalDiskMark QD32 |
+| **4K Random Read / Write** | 4 KB random I/O at **QD1** |
+
+QD1 unbuffered I/O is the intended test (desktop snappiness, not a queued saturation run). The **host** can cap the drive well below its marketing peak — CPU, chipset, and PCIe generation/lane count included. CrystalDiskMark QD32 numbers on a different bus are not a target.
 
 ### GPU (3 tests per device)
 | Test | What |
@@ -53,7 +55,7 @@ Plus a **latency ladder** from 4 KB through `max(128 MB, 2× L3)`.
 | **FP64** | 4K×4K Mandelbrot (double precision, if supported) |
 | **Integer** | 16M-thread xorshift-multiply hash chain |
 
-All GPUs with hardware DX12 support are benchmarked. Only the DXGI primary (display) GPU contributes to composite scores. FP64 is shown in the GPU table but is **not** part of the Gaming composite.
+All GPUs with hardware DX12 support are benchmarked. Only the DXGI primary (display) GPU contributes to composite scores. FP64 is shown in the GPU table but is **not** part of the Gaming composite. Each GPU sample is one fat dispatch (~1 s of shader work, repeats inside the kernel) so launch/sync is not the thing being timed.
 
 ## Composite Scores
 

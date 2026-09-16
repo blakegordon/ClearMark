@@ -10,16 +10,20 @@ namespace ClearMark;
 internal static class CpuTopology
 {
     public static int Preferred1TLogicalIndex { get; }
+    public static long MaxL1Bytes { get; }
+    public static long MaxL2Bytes { get; }
     public static long MaxL3Bytes { get; }
     public static long TotalL3Bytes { get; }
 
     static CpuTopology()
     {
         Preferred1TLogicalIndex = QueryPreferred1T() ?? 0;
-        var (maxL3, totalL3) = QueryL3();
-        if (maxL3 == 0)
-            (maxL3, totalL3) = QueryL3FromWmi();
-        MaxL3Bytes = maxL3;
+        var (l1, l2, l3, totalL3) = QueryCaches();
+        if (l3 == 0)
+            (l2, l3, totalL3) = QueryCacheFromWmi(l2);
+        MaxL1Bytes = l1 > 0 ? l1 : 32 * 1024;
+        MaxL2Bytes = l2 > 0 ? l2 : 512 * 1024;
+        MaxL3Bytes = l3;
         TotalL3Bytes = totalL3;
     }
 
@@ -67,35 +71,42 @@ internal static class CpuTopology
         return bestIndex;
     }
 
-    private static (long maxBytes, long totalBytes) QueryL3()
+    private const int CacheInstruction = 1;
+
+    private static (long l1, long l2, long l3, long totalL3) QueryCaches()
     {
         byte[]? buf = QueryRelation(NativeMethods.LOGICAL_PROCESSOR_RELATIONSHIP.RelationCache);
         if (buf is null)
-            return (0, 0);
+            return (0, 0, 0, 0);
 
-        long max = 0, total = 0;
+        long l1 = 0, l2 = 0, l3 = 0, totalL3 = 0;
         unsafe
         {
             fixed (byte* p = buf)
             {
                 byte* cur = p;
                 byte* end = p + buf.Length;
-                while (cur + 16 <= end)
+                while (cur + 20 <= end)
                 {
                     int relationship = *(int*)cur;
                     uint size = *(uint*)(cur + 4);
-                    if (size < 16 || cur + size > end)
+                    if (size < 20 || cur + size > end)
                         break;
 
                     if (relationship == (int)NativeMethods.LOGICAL_PROCESSOR_RELATIONSHIP.RelationCache)
                     {
                         byte level = cur[8];
                         uint cacheSize = *(uint*)(cur + 12);
-                        if (level == 3 && cacheSize > 0)
+                        int type = *(int*)(cur + 16);
+                        if (cacheSize > 0 && type != CacheInstruction)
                         {
-                            if (cacheSize > max)
-                                max = cacheSize;
-                            total += cacheSize;
+                            if (level == 1 && cacheSize > l1) l1 = cacheSize;
+                            else if (level == 2 && cacheSize > l2) l2 = cacheSize;
+                            else if (level == 3)
+                            {
+                                if (cacheSize > l3) l3 = cacheSize;
+                                totalL3 += cacheSize;
+                            }
                         }
                     }
 
@@ -104,28 +115,28 @@ internal static class CpuTopology
             }
         }
 
-        return (max, total);
+        return (l1, l2, l3, totalL3);
     }
 
-    private static (long maxBytes, long totalBytes) QueryL3FromWmi()
+    private static (long l2, long l3, long totalL3) QueryCacheFromWmi(long existingL2)
     {
-        long max = 0, total = 0;
+        long l2 = existingL2, l3 = 0, totalL3 = 0;
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT L3CacheSize FROM Win32_Processor");
+            using var searcher = new ManagementObjectSearcher("SELECT L2CacheSize, L3CacheSize FROM Win32_Processor");
             foreach (var obj in searcher.Get())
             {
-                long bytes = Convert.ToInt64(obj["L3CacheSize"]) * 1024;
-                if (bytes <= 0)
-                    continue;
-                if (bytes > max)
-                    max = bytes;
-                total += bytes;
+                long l2b = Convert.ToInt64(obj["L2CacheSize"]) * 1024;
+                long l3b = Convert.ToInt64(obj["L3CacheSize"]) * 1024;
+                if (l2b > l2) l2 = l2b;
+                if (l3b <= 0) continue;
+                if (l3b > l3) l3 = l3b;
+                totalL3 += l3b;
             }
         }
         catch (Exception ex) when (ex is ManagementException or COMException or UnauthorizedAccessException) { }
 
-        return (max, total);
+        return (l2, l3, totalL3);
     }
 
     private static byte[]? QueryRelation(NativeMethods.LOGICAL_PROCESSOR_RELATIONSHIP relation)

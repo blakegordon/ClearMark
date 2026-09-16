@@ -11,22 +11,27 @@ internal record GpuResult(string DeviceName, bool IsPrimary, BenchTest Test, dou
 // Each thread computes one pixel. Heavy on FP multiply/add.
 [ThreadGroupSize(512, 1, 1)]
 [GeneratedComputeShaderDescriptor]
-public readonly partial struct MandelbrotShader(ReadWriteBuffer<int> output, int width, int maxIter) : IComputeShader
+public readonly partial struct MandelbrotShader(ReadWriteBuffer<int> output, int width, int maxIter, int repeats) : IComputeShader
 {
     public void Execute()
     {
         int px = ThreadIds.X;
         float cx = (px % width - width * 0.5f) * 4.0f / width;
         float cy = (px / width - width * 0.5f) * 4.0f / width;
-        float zx = 0, zy = 0;
-        int i = 0;
-        for (; i < maxIter && zx * zx + zy * zy < 4.0f; i++)
+        int last = 0;
+        for (int r = 0; r < repeats; r++)
         {
-            float t = zx * zx - zy * zy + cx;
-            zy = 2.0f * zx * zy + cy;
-            zx = t;
+            float zx = 0, zy = 0;
+            int i = 0;
+            for (; i < maxIter && zx * zx + zy * zy < 4.0f; i++)
+            {
+                float t = zx * zx - zy * zy + cx;
+                zy = 2.0f * zx * zy + cy;
+                zx = t;
+            }
+            last = i;
         }
-        output[px] = i;
+        output[px] = last;
     }
 }
 
@@ -35,22 +40,27 @@ public readonly partial struct MandelbrotShader(ReadWriteBuffer<int> output, int
 [ThreadGroupSize(512, 1, 1)]
 [GeneratedComputeShaderDescriptor]
 [RequiresDoublePrecisionSupport]
-public readonly partial struct MandelbrotFP64Shader(ReadWriteBuffer<int> output, int width, int maxIter) : IComputeShader
+public readonly partial struct MandelbrotFP64Shader(ReadWriteBuffer<int> output, int width, int maxIter, int repeats) : IComputeShader
 {
     public void Execute()
     {
         int px = ThreadIds.X;
         double cx = (px % width - width * 0.5) * 4.0 / width;
         double cy = (px / width - width * 0.5) * 4.0 / width;
-        double zx = 0, zy = 0;
-        int i = 0;
-        for (; i < maxIter && zx * zx + zy * zy < 4.0; i++)
+        int last = 0;
+        for (int r = 0; r < repeats; r++)
         {
-            double t = zx * zx - zy * zy + cx;
-            zy = 2.0 * zx * zy + cy;
-            zx = t;
+            double zx = 0, zy = 0;
+            int i = 0;
+            for (; i < maxIter && zx * zx + zy * zy < 4.0; i++)
+            {
+                double t = zx * zx - zy * zy + cx;
+                zy = 2.0 * zx * zy + cy;
+                zx = t;
+            }
+            last = i;
         }
-        output[px] = i;
+        output[px] = last;
     }
 }
 
@@ -81,6 +91,7 @@ internal static class GpuBenchmark
     private const int MaxIter = 1000;
     private const int HashIter = 10_000;
     private const int Runs = 3;
+    private const double MinSampleSeconds = 1.0;
 
     public static List<GpuResult>? Run(Action<string> onStatus)
     {
@@ -104,8 +115,10 @@ internal static class GpuBenchmark
             onStatus($"{label}GPU FP32 (Mandelbrot 4K×4K)...");
             using (var buf = device.AllocateReadWriteBuffer<int>(Pixels))
             {
-                double val = MeasureMedian(() => device.For(Pixels, new MandelbrotShader(buf, Size, MaxIter)),
-                                           elapsed => Pixels / elapsed / 1e6);
+                int repeats = Calibrate(r => device.For(Pixels, new MandelbrotShader(buf, Size, MaxIter, r)));
+                double val = MeasureMedian(
+                    () => device.For(Pixels, new MandelbrotShader(buf, Size, MaxIter, repeats)),
+                    elapsed => (double)Pixels * repeats / elapsed / 1e6);
                 results.Add(new GpuResult(name, isPrimary, BenchTest.GpuFp32, val));
             }
 
@@ -114,8 +127,10 @@ internal static class GpuBenchmark
             try
             {
                 using var buf = device.AllocateReadWriteBuffer<int>(Pixels);
-                double val = MeasureMedian(() => device.For(Pixels, new MandelbrotFP64Shader(buf, Size, MaxIter)),
-                                           elapsed => Pixels / elapsed / 1e6);
+                int repeats = Calibrate(r => device.For(Pixels, new MandelbrotFP64Shader(buf, Size, MaxIter, r)));
+                double val = MeasureMedian(
+                    () => device.For(Pixels, new MandelbrotFP64Shader(buf, Size, MaxIter, repeats)),
+                    elapsed => (double)Pixels * repeats / elapsed / 1e6);
                 results.Add(new GpuResult(name, isPrimary, BenchTest.GpuFp64, val));
             }
             catch (Exception ex) when (ex is NotSupportedException or COMException or InvalidOperationException or Win32Exception)
@@ -125,9 +140,11 @@ internal static class GpuBenchmark
             onStatus($"{label}GPU Integer (Hash 16M×10K)...");
             using (var buf = device.AllocateReadWriteBuffer<uint>(Pixels))
             {
-                double totalOps = (double)Pixels * HashIter * 7.0;
-                double val = MeasureMedian(() => device.For(Pixels, new IntHashShader(buf, HashIter)),
-                                           elapsed => totalOps / elapsed / 1e9);
+                int repeats = Calibrate(r => device.For(Pixels, new IntHashShader(buf, HashIter * r)));
+                double totalOps = (double)Pixels * HashIter * repeats * 7.0;
+                double val = MeasureMedian(
+                    () => device.For(Pixels, new IntHashShader(buf, HashIter * repeats)),
+                    elapsed => totalOps / elapsed / 1e9);
                 results.Add(new GpuResult(name, isPrimary, BenchTest.GpuInteger, val));
             }
         }
@@ -155,7 +172,17 @@ internal static class GpuBenchmark
         return devices.OrderByDescending(d => d.DedicatedMemorySize).First();
     }
 
-    /// <summary>Warm-up + median of N runs. scoreFunc converts elapsed seconds to a result value.</summary>
+    /// <summary>One timed dispatch after a warmup. Repeats are inside the shader so launch/sync is once per sample.</summary>
+    private static int Calibrate(Action<int> dispatch)
+    {
+        dispatch(1);
+        var sw = Stopwatch.StartNew();
+        dispatch(1);
+        sw.Stop();
+        double t = Math.Max(sw.Elapsed.TotalSeconds, 1e-4);
+        return (int)Math.Clamp(Math.Ceiling(MinSampleSeconds / t), 1, 20_000);
+    }
+
     private static double MeasureMedian(Action dispatch, Func<double, double> scoreFunc)
         => Measurement.Median(Runs, () =>
         {
@@ -163,5 +190,5 @@ internal static class GpuBenchmark
             dispatch();
             sw.Stop();
             return scoreFunc(sw.Elapsed.TotalSeconds);
-        }, warmup: dispatch);
+        });
 }

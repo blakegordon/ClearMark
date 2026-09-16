@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace ClearMark;
@@ -92,5 +93,43 @@ internal static class ThreadPinning
 
         for (int t = 0; t < count; t++)
             threads[t].Join();
+    }
+
+    /// <summary>
+    /// Pin, run setup (first-touch), then time work. Thread create/join are outside the stopwatch.
+    /// </summary>
+    public static double PinnedForTimed(int count, Action<int> setup, Action<int> work)
+    {
+        var ready = new CountdownEvent(count);
+        var go = new ManualResetEventSlim(false);
+        var done = new CountdownEvent(count);
+        var threads = new Thread[count];
+
+        for (int t = 0; t < count; t++)
+        {
+            int tid = t;
+            threads[t] = new Thread(() =>
+            {
+                PinCurrentThread(tid);
+                setup(tid);
+                ready.Signal();
+                go.Wait();
+                work(tid);
+                done.Signal();
+            })
+            { IsBackground = true };
+            threads[t].Start();
+        }
+
+        ready.Wait();
+        var sw = Stopwatch.StartNew();
+        go.Set();
+        done.Wait();
+        sw.Stop();
+
+        for (int t = 0; t < count; t++)
+            threads[t].Join();
+
+        return sw.Elapsed.TotalSeconds;
     }
 }

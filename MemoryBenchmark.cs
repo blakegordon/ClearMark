@@ -13,6 +13,9 @@ internal static class MemoryBenchmark
     private const int Iterations = 5;
     private const long MinDramBytes = 1L << 30;
     private const long MinPerThreadBytes = 64L * 1024 * 1024;
+    private const long MinLatencyBytes = 128L * 1024 * 1024;
+    private const int CacheLineBytes = 64;
+    private const long MinTimedNBytes = 8L << 30;
 
     public static List<MemoryResult> Run(Action<string> onStatus)
     {
@@ -25,7 +28,13 @@ internal static class MemoryBenchmark
         results.Add(Measure(BenchTest.SeqBandwidthNT, SequentialBandwidthMT));
 
         onStatus("Memory Random Latency...");
-        results.Add(Measure1T(BenchTest.RandomLatency, RandomLatency));
+        results.Add(ThreadPinning.RunOnPreferred1T(() =>
+        {
+            int size = (int)Math.Min(LatencyWorkingSetBytes(), int.MaxValue & ~63L);
+            var (chain, start) = BuildChaseChain(size);
+            double ns = Measurement.Median(Iterations, () => ChaseLatency(chain, start), collectGc: true);
+            return new MemoryResult(BenchTest.RandomLatency, ns);
+        }));
 
         onStatus("Memory Copy Bandwidth (1T)...");
         results.Add(Measure1T(BenchTest.CopyBandwidth1T, CopyBandwidth));
@@ -44,9 +53,15 @@ internal static class MemoryBenchmark
 
     private static long Align64(long bytes) => bytes & ~63L;
 
-    /// <summary>Working set for DRAM tests: 4× the largest L3, at least 1 GB, 64-byte aligned.</summary>
+    /// <summary>STREAM working set: 4× L3, at least 1 GB. Bandwidth tests can afford a large fill.</summary>
     private static long DramWorkingSetBytes()
         => Align64(Math.Max(CpuTopology.MaxL3Bytes * 4, MinDramBytes));
+
+    /// <summary>
+    /// RAM latency working set: 4× L3, at least 128 MB. No 1 GB floor — Sattolo on a 1 GB int[] is tens of seconds.
+    /// </summary>
+    private static long LatencyWorkingSetBytes()
+        => Align64(Math.Max(CpuTopology.MaxL3Bytes * 4, MinLatencyBytes));
 
     private static long PerThreadBytes(int threads)
     {
@@ -123,39 +138,41 @@ internal static class MemoryBenchmark
     }
 
     /// <summary>
-    /// Single n-cycle (Sattolo) so the chase visits the whole working set. Shuffle defeats prefetchers.
+    /// One node per cache line so the working set is <paramref name="sizeBytes"/> but Sattolo is size/64, not size/4.
+    /// Single cycle (Sattolo) defeats prefetchers.
     /// </summary>
-    private static double PointerChaseLatency(int sizeBytes)
+    private static (int[] chain, int start) BuildChaseChain(int sizeBytes)
     {
-        int count = sizeBytes / sizeof(int);
-        int[] chain = new int[count];
-        for (int i = 0; i < count; i++)
-            chain[i] = i;
+        int stride = CacheLineBytes / sizeof(int);
+        int nodes = Math.Max(2, sizeBytes / CacheLineBytes);
+        int[] chain = new int[nodes * stride];
+        int[] order = new int[nodes];
+        for (int i = 0; i < nodes; i++)
+            order[i] = i;
 
         var rng = new Random(42);
-        for (int i = count - 1; i > 0; i--)
+        for (int i = nodes - 1; i > 0; i--)
         {
             int j = rng.Next(i);
-            (chain[i], chain[j]) = (chain[j], chain[i]);
+            (order[i], order[j]) = (order[j], order[i]);
         }
 
-        int chases = Math.Max(1_000_000, 64_000_000 / count * 1000);
-        int idx = 0;
+        for (int i = 0; i < nodes; i++)
+            chain[order[i] * stride] = order[(i + 1) % nodes] * stride;
+
+        return (chain, order[0] * stride);
+    }
+
+    private static double ChaseLatency(int[] chain, int start)
+    {
+        const int chases = 2_000_000;
+        int idx = start;
         var sw = Stopwatch.StartNew();
         for (int i = 0; i < chases; i++)
             idx = chain[idx];
         sw.Stop();
-
         _ = idx;
         return sw.Elapsed.TotalNanoseconds / chases;
-    }
-
-    private static double RandomLatency()
-    {
-        long size = DramWorkingSetBytes();
-        if (size > int.MaxValue)
-            size = int.MaxValue & ~3L;
-        return PointerChaseLatency((int)size);
     }
 
     public static List<LatencyLadderPoint> RunLatencyLadder(Action<string> onStatus)
@@ -167,11 +184,12 @@ internal static class MemoryBenchmark
             foreach (int kb in LadderSizesKB())
             {
                 string label = kb >= 1024 ? $"{kb / 1024} MB" : $"{kb} KB";
+                var (chain, start) = BuildChaseChain(kb * 1024);
                 double[] samples =
                 [
-                    PointerChaseLatency(kb * 1024),
-                    PointerChaseLatency(kb * 1024),
-                    PointerChaseLatency(kb * 1024)
+                    ChaseLatency(chain, start),
+                    ChaseLatency(chain, start),
+                    ChaseLatency(chain, start)
                 ];
                 Array.Sort(samples);
                 results.Add(new LatencyLadderPoint(label, kb, samples[1]));
@@ -182,8 +200,8 @@ internal static class MemoryBenchmark
 
     private static int[] LadderSizesKB()
     {
-        long maxL3 = CpuTopology.MaxL3Bytes;
-        int maxKB = (int)Math.Max(128 * 1024, (maxL3 * 2) / 1024);
+        long maxBytes = Math.Max(LatencyWorkingSetBytes(), Math.Max(128L * 1024 * 1024, CpuTopology.MaxL3Bytes * 2));
+        int maxKB = (int)Math.Min(maxBytes / 1024, int.MaxValue / 2);
         var sizes = new List<int>();
         for (int kb = 4; kb <= maxKB && kb > 0; kb *= 2)
             sizes.Add(kb);
@@ -229,27 +247,29 @@ internal static class MemoryBenchmark
         long* dst = (long*)NativeMemory.AlignedAlloc((nuint)totalBytes, 64);
         try
         {
-            ThreadPinning.PinnedFor(threads, t =>
-            {
-                long start = t * perThread;
-                long end = start + perThread;
-                for (long i = start; i < end; i++) { src[i] = i; dst[i] = 0; }
-            });
+            int repeats = (int)Math.Max(1, MinTimedNBytes / totalBytes);
+            double seconds = ThreadPinning.PinnedForTimed(threads,
+                t =>
+                {
+                    long start = t * perThread;
+                    long end = start + perThread;
+                    for (long i = start; i < end; i++) { src[i] = i; dst[i] = 0; }
+                },
+                t =>
+                {
+                    long start = t * perThread;
+                    long end = start + perThread;
+                    for (int r = 0; r < repeats; r++)
+                    {
+                        long sum = 0;
+                        for (long i = start; i < end; i++)
+                            sum += src[i];
+                        FillNt(dst, start, end, sum);
+                        dst[start] = sum;
+                    }
+                });
 
-            var sw = Stopwatch.StartNew();
-            ThreadPinning.PinnedFor(threads, t =>
-            {
-                long start = t * perThread;
-                long end = start + perThread;
-                long sum = 0;
-                for (long i = start; i < end; i++)
-                    sum += src[i];
-                FillNt(dst, start, end, sum);
-                dst[start] = sum;
-            });
-            sw.Stop();
-
-            return MbPerSec(totalBytes * 2.0, sw.Elapsed.TotalSeconds);
+            return MbPerSec(totalBytes * 2.0 * repeats, seconds);
         }
         finally
         {
@@ -270,23 +290,23 @@ internal static class MemoryBenchmark
         long* dst = (long*)NativeMemory.AlignedAlloc((nuint)totalBytes, 64);
         try
         {
-            ThreadPinning.PinnedFor(threads, t =>
-            {
-                long start = t * perThread;
-                long end = start + perThread;
-                for (long i = start; i < end; i++) { src[i] = i; dst[i] = 0; }
-            });
+            int repeats = (int)Math.Max(1, MinTimedNBytes / totalBytes);
+            double seconds = ThreadPinning.PinnedForTimed(threads,
+                t =>
+                {
+                    long start = t * perThread;
+                    long end = start + perThread;
+                    for (long i = start; i < end; i++) { src[i] = i; dst[i] = 0; }
+                },
+                t =>
+                {
+                    long start = t * perThread;
+                    long end = start + perThread;
+                    for (int r = 0; r < repeats; r++)
+                        CopyNt(src, dst, start, end);
+                });
 
-            var sw = Stopwatch.StartNew();
-            ThreadPinning.PinnedFor(threads, t =>
-            {
-                long start = t * perThread;
-                long end = start + perThread;
-                CopyNt(src, dst, start, end);
-            });
-            sw.Stop();
-
-            return MbPerSec(totalBytes * 2.0, sw.Elapsed.TotalSeconds);
+            return MbPerSec(totalBytes * 2.0 * repeats, seconds);
         }
         finally
         {
