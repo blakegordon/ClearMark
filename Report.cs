@@ -24,7 +24,7 @@ internal static class Report
 
         var panel = new Panel(new Rows([.. rows]))
         {
-            Header = new PanelHeader("[bold cyan]ClearMark v1.0[/]"),
+            Header = new PanelHeader($"[bold cyan]{AppInfo.Label}[/]"),
             Border = BoxBorder.Double,
             Padding = new Padding(2, 0, 2, 0)
         };

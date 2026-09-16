@@ -84,10 +84,10 @@ This run is from the dual-Xeon Gold 6244 reference workstation (12-channel DDR4-
 <summary>Text version (for copy-paste)</summary>
 
 ```
-ClearMark v1.0 — Transparent System Benchmark
+ClearMark v1.1 — Transparent System Benchmark
 https://github.com/blakegordon/ClearMark — All scoring formulas are visible in source code.
 
-╔═ClearMark v1.0═══════════════════════════════════════════════════════╗
+╔═ClearMark v1.1═══════════════════════════════════════════════════════╗
 ║  CPU:  2x Intel(R) Xeon(R) Gold 6244 CPU @ 3.60GHz (16C/32T, X64)    ║
 ║  RAM:  766.7 GB @ 2400 MHz                                           ║
 ║  GPU:  NVIDIA GeForce RTX 4090           PCIe 3.0 x16  32.0.15.8180  ║

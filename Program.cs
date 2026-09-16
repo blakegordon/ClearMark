@@ -1,7 +1,7 @@
 using ClearMark;
 using Spectre.Console;
 
-AnsiConsole.MarkupLine("[bold cyan]ClearMark v1.0[/] — Transparent System Benchmark");
+AnsiConsole.MarkupLine($"[bold cyan]{AppInfo.Label}[/] — Transparent System Benchmark");
 AnsiConsole.MarkupLine("[dim]https://github.com/blakegordon/ClearMark — All scoring formulas are visible in source code.[/]");
 AnsiConsole.WriteLine();
 
