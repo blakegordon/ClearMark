@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 
-namespace SysBench;
+namespace ClearMark;
 
 public record MemoryResult(string TestName, double Value, string Unit);
 public record LatencyLadderPoint(string SizeLabel, int SizeKB, double LatencyNs);

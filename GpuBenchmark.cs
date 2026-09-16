@@ -1,7 +1,7 @@
 using ComputeSharp;
 using System.Diagnostics;
 
-namespace SysBench;
+namespace ClearMark;
 
 public record GpuResult(string DeviceName, bool IsPrimary, string TestName, double Value, string Unit);
 

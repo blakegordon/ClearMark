@@ -1,4 +1,4 @@
-namespace SysBench;
+namespace ClearMark;
 
 /// <summary>
 /// Transparent scoring system. All weights and reference baselines are constants —

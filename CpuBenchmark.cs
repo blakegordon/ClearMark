@@ -1,7 +1,7 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 
-namespace SysBench;
+namespace ClearMark;
 
 public record CpuResult(string TestName, double Value, string Unit);
 

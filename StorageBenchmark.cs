@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 
-namespace SysBench;
+namespace ClearMark;
 
 public record StorageResult(string TestName, double Value, string Unit);
 

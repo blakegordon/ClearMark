@@ -1,8 +1,8 @@
 using Spectre.Console;
-using SysBench;
+using ClearMark;
 
-AnsiConsole.MarkupLine("[bold cyan]SysBench v1.0[/] — Transparent System Benchmark");
-AnsiConsole.MarkupLine("[dim]https://github.com/sysbench — All scoring formulas are visible in source code.[/]");
+AnsiConsole.MarkupLine("[bold cyan]ClearMark v1.0[/] — Transparent System Benchmark");
+AnsiConsole.MarkupLine("[dim]https://github.com/clearmark — All scoring formulas are visible in source code.[/]");
 AnsiConsole.WriteLine();
 
 bool skipStorage = args.Any(a => a.Equals("--skip-storage", StringComparison.OrdinalIgnoreCase));

@@ -1,6 +1,6 @@
 using Spectre.Console;
 
-namespace SysBench;
+namespace ClearMark;
 
 public static class Report
 {
@@ -14,7 +14,7 @@ public static class Report
                 new Markup($"[bold]Disk:[/] {Markup.Escape(hw.OsDrive)}"),
                 new Markup($"[bold]OS:[/]   {Markup.Escape(hw.OsVersion)}")))
         {
-            Header = new PanelHeader("[bold cyan]SysBench v1.0[/]"),
+            Header = new PanelHeader("[bold cyan]ClearMark v1.0[/]"),
             Border = BoxBorder.Double,
             Padding = new Padding(2, 0, 2, 0)
         };

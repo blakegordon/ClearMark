@@ -1,7 +1,7 @@
 using System.Management;
 using System.Runtime.InteropServices;
 
-namespace SysBench;
+namespace ClearMark;
 
 public record HardwareInfo(
     string CpuName, int Cores, int Threads, string Architecture,
