@@ -2,10 +2,10 @@
 from pathlib import Path
 
 LINES = r"""
-ClearMark v1.1 — Transparent System Benchmark
+ClearMark v1.1.1 — Transparent System Benchmark
 https://github.com/blakegordon/ClearMark — All scoring formulas are visible in source code.
 
-╔═ClearMark v1.1═══════════════════════════════════════════════════════╗
+╔═ClearMark v1.1.1═════════════════════════════════════════════════════╗
 ║  CPU:  2x Intel(R) Xeon(R) Gold 6244 CPU @ 3.60GHz (16C/32T, X64)    ║
 ║  RAM:  766.7 GB @ 2400 MHz                                           ║
 ║  GPU:  NVIDIA GeForce RTX 4090           PCIe 3.0 x16  32.0.15.8180  ║
@@ -153,7 +153,7 @@ def colorize(line: str) -> str:
         return '&#160;&#160;<tspan class="gn">L1</tspan>&#160;│&#160;<tspan class="yl">L2</tspan>&#160;│&#160;<tspan class="or">L3</tspan>&#160;│&#160;<tspan class="rd">RAM</tspan>'
 
     if stripped.startswith("ClearMark v1.1"):
-        return '<tspan class="cy">ClearMark&#160;v1.1</tspan>&#160;—&#160;Transparent&#160;System&#160;Benchmark'
+        return '<tspan class="cy">ClearMark&#160;v1.1.1</tspan>&#160;—&#160;Transparent&#160;System&#160;Benchmark'
 
     if stripped.startswith("https://"):
         return f'<tspan class="dm">{esc(stripped)}</tspan>'
