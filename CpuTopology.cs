@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Management;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -35,36 +36,33 @@ internal static class CpuTopology
 
         int bestIndex = 0;
         int bestEff = -1;
+        int maskOffset = 32;
+        int groupOffset = 32 + nint.Size;
+        int minCoreSize = groupOffset + 2;
 
-        unsafe
+        ReadOnlySpan<byte> buffer = buf;
+        int offset = 0;
+        while (offset + 8 <= buffer.Length)
         {
-            fixed (byte* p = buf)
+            uint size = BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(offset + 4));
+            if (size < 8 || offset + (int)size > buffer.Length)
+                break;
+            ReadOnlySpan<byte> rec = buffer.Slice(offset, (int)size);
+            offset += (int)size;
+
+            int relationship = BinaryPrimitives.ReadInt32LittleEndian(rec);
+            if (relationship != (int)NativeMethods.LOGICAL_PROCESSOR_RELATIONSHIP.RelationProcessorCore
+                || rec.Length < minCoreSize)
+                continue;
+
+            byte efficiency = rec[9];
+            nuint mask = MemoryMarshal.Read<nuint>(rec[maskOffset..]);
+            ushort group = BinaryPrimitives.ReadUInt16LittleEndian(rec[groupOffset..]);
+            int idx = LogicalIndex(group, mask);
+            if (efficiency > bestEff || (efficiency == bestEff && idx < bestIndex))
             {
-                byte* cur = p;
-                byte* end = p + buf.Length;
-                while (cur + 8 <= end)
-                {
-                    int relationship = *(int*)cur;
-                    uint size = *(uint*)(cur + 4);
-                    if (size < 8 || cur + size > end)
-                        break;
-
-                    if (relationship == (int)NativeMethods.LOGICAL_PROCESSOR_RELATIONSHIP.RelationProcessorCore
-                        && size >= 32 + (uint)sizeof(UIntPtr) + 2)
-                    {
-                        byte efficiency = cur[9];
-                        UIntPtr mask = *(UIntPtr*)(cur + 32);
-                        ushort group = *(ushort*)(cur + 32 + sizeof(UIntPtr));
-                        int idx = LogicalIndex(group, mask);
-                        if (efficiency > bestEff || (efficiency == bestEff && idx < bestIndex))
-                        {
-                            bestEff = efficiency;
-                            bestIndex = idx;
-                        }
-                    }
-
-                    cur += size;
-                }
+                bestEff = efficiency;
+                bestIndex = idx;
             }
         }
 
@@ -80,38 +78,34 @@ internal static class CpuTopology
             return (0, 0, 0, 0);
 
         long l1 = 0, l2 = 0, l3 = 0, totalL3 = 0;
-        unsafe
+        ReadOnlySpan<byte> buffer = buf;
+        int offset = 0;
+        while (offset + 8 <= buffer.Length)
         {
-            fixed (byte* p = buf)
+            uint size = BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(offset + 4));
+            if (size < 8 || offset + (int)size > buffer.Length)
+                break;
+            ReadOnlySpan<byte> rec = buffer.Slice(offset, (int)size);
+            offset += (int)size;
+
+            if (rec.Length < 20)
+                continue;
+            int relationship = BinaryPrimitives.ReadInt32LittleEndian(rec);
+            if (relationship != (int)NativeMethods.LOGICAL_PROCESSOR_RELATIONSHIP.RelationCache)
+                continue;
+
+            byte level = rec[8];
+            uint cacheSize = BinaryPrimitives.ReadUInt32LittleEndian(rec[12..]);
+            int type = BinaryPrimitives.ReadInt32LittleEndian(rec[16..]);
+            if (cacheSize == 0 || type == CacheInstruction)
+                continue;
+
+            if (level == 1 && cacheSize > l1) l1 = cacheSize;
+            else if (level == 2 && cacheSize > l2) l2 = cacheSize;
+            else if (level == 3)
             {
-                byte* cur = p;
-                byte* end = p + buf.Length;
-                while (cur + 20 <= end)
-                {
-                    int relationship = *(int*)cur;
-                    uint size = *(uint*)(cur + 4);
-                    if (size < 20 || cur + size > end)
-                        break;
-
-                    if (relationship == (int)NativeMethods.LOGICAL_PROCESSOR_RELATIONSHIP.RelationCache)
-                    {
-                        byte level = cur[8];
-                        uint cacheSize = *(uint*)(cur + 12);
-                        int type = *(int*)(cur + 16);
-                        if (cacheSize > 0 && type != CacheInstruction)
-                        {
-                            if (level == 1 && cacheSize > l1) l1 = cacheSize;
-                            else if (level == 2 && cacheSize > l2) l2 = cacheSize;
-                            else if (level == 3)
-                            {
-                                if (cacheSize > l3) l3 = cacheSize;
-                                totalL3 += cacheSize;
-                            }
-                        }
-                    }
-
-                    cur += size;
-                }
+                if (cacheSize > l3) l3 = cacheSize;
+                totalL3 += cacheSize;
             }
         }
 
@@ -142,26 +136,20 @@ internal static class CpuTopology
     private static byte[]? QueryRelation(NativeMethods.LOGICAL_PROCESSOR_RELATIONSHIP relation)
     {
         uint len = 0;
-        NativeMethods.GetLogicalProcessorInformationEx(relation, nint.Zero, ref len);
+        NativeMethods.GetLogicalProcessorInformationEx(relation, [], ref len);
         if (len == 0)
             return null;
 
         var buf = new byte[len];
-        unsafe
-        {
-            fixed (byte* p = buf)
-            {
-                uint len2 = len;
-                if (!NativeMethods.GetLogicalProcessorInformationEx(relation, (nint)p, ref len2))
-                    return null;
-            }
-        }
+        uint len2 = len;
+        if (!NativeMethods.GetLogicalProcessorInformationEx(relation, buf, ref len2))
+            return null;
         return buf;
     }
 
-    private static int LogicalIndex(ushort group, UIntPtr mask)
+    private static int LogicalIndex(ushort group, nuint mask)
     {
-        ulong m = mask.ToUInt64();
+        ulong m = mask;
         int bit = m == 0 ? 0 : BitOperations.TrailingZeroCount(m);
         int index = bit;
         for (ushort g = 0; g < group; g++)

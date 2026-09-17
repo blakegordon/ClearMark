@@ -76,74 +76,65 @@ internal static class StorageBenchmark
     {
         long blocksToWrite = sequential ? TestFileSizeBytes / blockSize : 50_000;
         long bytesWritten = blocksToWrite * blockSize;
+        Span<byte> span = AlignedSectorBuffer(blockSize, out byte[] buffer);
+        Random.Shared.NextBytes(span);
 
-        unsafe
+        using var handle = OpenUnbuffered(path, FileAccess.Write, sequential, writeThrough: !sequential);
+
+        var rng = new Random(123);
+        long maxBlock = TestFileSizeBytes / blockSize - 1;
+
+        var sw = Stopwatch.StartNew();
+        for (long i = 0; i < blocksToWrite; i++)
         {
-            byte* raw = (byte*)NativeMemory.AlignedAlloc((nuint)blockSize, 4096);
-            try
-            {
-                var span = new Span<byte>(raw, blockSize);
-                Random.Shared.NextBytes(span);
-
-                using var handle = OpenUnbuffered(path, FileAccess.Write, sequential, writeThrough: !sequential);
-
-                var rng = new Random(123);
-                long maxBlock = TestFileSizeBytes / blockSize - 1;
-
-                var sw = Stopwatch.StartNew();
-                for (long i = 0; i < blocksToWrite; i++)
-                {
-                    long offset = sequential ? i * blockSize : (long)(rng.NextDouble() * maxBlock) * blockSize;
-                    RandomAccess.Write(handle, span, offset);
-                }
-                RandomAccess.FlushToDisk(handle);
-                sw.Stop();
-
-                return bytesWritten / sw.Elapsed.TotalSeconds / (1024.0 * 1024.0);
-            }
-            finally
-            {
-                NativeMemory.AlignedFree(raw);
-            }
+            long offset = sequential ? i * blockSize : (long)(rng.NextDouble() * maxBlock) * blockSize;
+            RandomAccess.Write(handle, span, offset);
         }
+        RandomAccess.FlushToDisk(handle);
+        sw.Stop();
+        GC.KeepAlive(buffer);
+
+        return bytesWritten / sw.Elapsed.TotalSeconds / (1024.0 * 1024.0);
     }
 
     private static double DoRead(string path, int blockSize, bool sequential)
     {
         long blocksToRead = sequential ? TestFileSizeBytes / blockSize : 50_000;
         long bytesRead = blocksToRead * blockSize;
+        Span<byte> span = AlignedSectorBuffer(blockSize, out byte[] buffer);
 
-        unsafe
+        using var handle = OpenUnbuffered(path, FileAccess.Read, sequential, writeThrough: false);
+
+        long fileSize = RandomAccess.GetLength(handle);
+        if (fileSize < TestFileSizeBytes)
+            throw new IOException($"Storage test file is {fileSize} bytes, expected {TestFileSizeBytes}");
+
+        var rng = new Random(123);
+        long maxBlock = fileSize / blockSize - 1;
+
+        var sw = Stopwatch.StartNew();
+        for (long i = 0; i < blocksToRead; i++)
         {
-            byte* raw = (byte*)NativeMemory.AlignedAlloc((nuint)blockSize, 4096);
-            try
-            {
-                var span = new Span<byte>(raw, blockSize);
-                using var handle = OpenUnbuffered(path, FileAccess.Read, sequential, writeThrough: false);
-
-                long fileSize = RandomAccess.GetLength(handle);
-                if (fileSize < TestFileSizeBytes)
-                    throw new IOException($"Storage test file is {fileSize} bytes, expected {TestFileSizeBytes}");
-
-                var rng = new Random(123);
-                long maxBlock = fileSize / blockSize - 1;
-
-                var sw = Stopwatch.StartNew();
-                for (long i = 0; i < blocksToRead; i++)
-                {
-                    long offset = sequential ? i * blockSize : (long)(rng.NextDouble() * maxBlock) * blockSize;
-                    int n = RandomAccess.Read(handle, span, offset);
-                    if (n != blockSize)
-                        throw new IOException($"Read expected {blockSize} bytes, got {n}");
-                }
-                sw.Stop();
-
-                return bytesRead / sw.Elapsed.TotalSeconds / (1024.0 * 1024.0);
-            }
-            finally
-            {
-                NativeMemory.AlignedFree(raw);
-            }
+            long offset = sequential ? i * blockSize : (long)(rng.NextDouble() * maxBlock) * blockSize;
+            int n = RandomAccess.Read(handle, span, offset);
+            if (n != blockSize)
+                throw new IOException($"Read expected {blockSize} bytes, got {n}");
         }
+        sw.Stop();
+        GC.KeepAlive(buffer);
+
+        return bytesRead / sw.Elapsed.TotalSeconds / (1024.0 * 1024.0);
+    }
+
+    /// <summary>
+    /// FILE_FLAG_NO_BUFFERING requires a sector-aligned address. Pin the array on the POH
+    /// and skip to the next 4K boundary — no unsafe, no NativeMemory.
+    /// </summary>
+    private static Span<byte> AlignedSectorBuffer(int size, out byte[] owner, int alignment = 4096)
+    {
+        owner = GC.AllocateArray<byte>(size + alignment, pinned: true);
+        nint addr = Marshal.UnsafeAddrOfPinnedArrayElement(owner, 0);
+        int skip = (int)((alignment - (addr & (alignment - 1))) & (alignment - 1));
+        return owner.AsSpan(skip, size);
     }
 }

@@ -43,6 +43,6 @@ internal static partial class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool GetLogicalProcessorInformationEx(
         LOGICAL_PROCESSOR_RELATIONSHIP relationshipType,
-        nint buffer,
+        Span<byte> buffer,
         ref uint returnedLength);
 }
