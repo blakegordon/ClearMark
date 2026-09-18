@@ -4,17 +4,22 @@ using System.Runtime.InteropServices;
 namespace ClearMark;
 
 /// <summary>
-/// Negotiated PCIe link (generation × width) from live PCI devices (SetupAPI),
-/// the same properties Device Manager shows as "PCI current link speed/width".
+/// PCIe link from SetupAPI current/max speed and current width (Device Manager
+/// "PCI current/max link speed" and "PCI current link width"). Max generation
+/// is shown in parentheses only when it differs from current.
 /// </summary>
 [SuppressMessage("Interoperability", "CA1060", Justification = "SetupAPI surface lives with the PCI lookup, not NativeMethods.")]
 internal static partial class PcieInfo
 {
-    public readonly record struct Link(int Generation, int Width)
+    public readonly record struct Link(int Generation, int Width, int MaxGeneration)
     {
-        public override string ToString() => Width > 0
-            ? $"PCIe {Generation}.0 x{Width}"
-            : $"PCIe {Generation}.0";
+        public override string ToString()
+        {
+            string gen = MaxGeneration > 0 && MaxGeneration != Generation
+                ? $"{Generation}.0 (max {MaxGeneration}.0)"
+                : $"{Generation}.0";
+            return Width > 0 ? $"PCIe {gen} x{Width}" : $"PCIe {gen}";
+        }
     }
 
     private readonly record struct PciDevice(string InstanceId, string Name, Link Link);
@@ -79,11 +84,12 @@ internal static partial class PcieInfo
                 if (!TryGetUInt32(set, ref data, CurrentLinkSpeed, out uint speed) || speed == 0)
                     continue;
                 TryGetUInt32(set, ref data, CurrentLinkWidth, out uint width);
+                TryGetUInt32(set, ref data, MaxLinkSpeed, out uint maxSpeed);
                 string inst = GetInstanceId(set, in data);
                 if (inst.Length == 0)
                     continue;
                 string name = GetString(set, ref data, FriendlyName) ?? GetString(set, ref data, DeviceDesc) ?? "";
-                list.Add(new PciDevice(inst, name, new Link((int)speed, (int)width)));
+                list.Add(new PciDevice(inst, name, new Link((int)speed, (int)width, (int)maxSpeed)));
             }
         }
         finally
@@ -149,6 +155,7 @@ internal static partial class PcieInfo
     // DEFINE_PCI_DEVICE_DEVPKEY — pciprop.h  {3AB22E31-8264-4b4e-9AF5-A8D2D8E33E62}
     private static readonly DEVPROPKEY CurrentLinkSpeed = Key(0x3ab22e31, 0x8264, 0x4b4e, 0x9a, 0xf5, 0xa8, 0xd2, 0xd8, 0xe3, 0x3e, 0x62, 9);
     private static readonly DEVPROPKEY CurrentLinkWidth = Key(0x3ab22e31, 0x8264, 0x4b4e, 0x9a, 0xf5, 0xa8, 0xd2, 0xd8, 0xe3, 0x3e, 0x62, 10);
+    private static readonly DEVPROPKEY MaxLinkSpeed = Key(0x3ab22e31, 0x8264, 0x4b4e, 0x9a, 0xf5, 0xa8, 0xd2, 0xd8, 0xe3, 0x3e, 0x62, 11);
     // DEVPKEY_Device_FriendlyName / DeviceDesc — devpkey.h
     private static readonly DEVPROPKEY FriendlyName = Key(0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 14);
     private static readonly DEVPROPKEY DeviceDesc = Key(0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 2);
