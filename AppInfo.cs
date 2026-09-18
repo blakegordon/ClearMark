@@ -14,7 +14,7 @@ internal static class AppInfo
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
             ?.InformationalVersion;
         if (string.IsNullOrEmpty(raw))
-            return "1.1.1";
+            return "1.1.2";
         int plus = raw.IndexOf('+');
         return plus < 0 ? raw : raw[..plus];
     }
