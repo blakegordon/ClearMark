@@ -27,6 +27,9 @@ internal static class PcieInfo
 
     public static Link? Query(string? pnpDeviceId, string? nameHint = null)
     {
+        if (!OperatingSystem.IsWindows())
+            return null;
+
         var devices = Snapshot();
         if (devices.Count == 0)
             return null;
@@ -64,6 +67,9 @@ internal static class PcieInfo
 
     private static List<PciDevice> Snapshot()
     {
+        if (!OperatingSystem.IsWindows())
+            return [];
+
         if (s_cache is not null)
             return s_cache;
 
