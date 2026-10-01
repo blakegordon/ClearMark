@@ -1,4 +1,3 @@
-using ComputeSharp;
 using System.ComponentModel;
 using System.Management;
 using System.Runtime.InteropServices;
@@ -64,10 +63,6 @@ internal static class SystemInfo
 
             try
             {
-                string? primaryName = null;
-                try { primaryName = GraphicsDevice.GetDefault()?.Name; }
-                catch (Exception ex) when (ex is COMException or InvalidOperationException or Win32Exception) { }
-
                 using var gpuSearcher = new ManagementObjectSearcher("SELECT Name, DriverVersion, PNPDeviceID FROM Win32_VideoController");
 
                 foreach (var obj in gpuSearcher.Get())
@@ -77,10 +72,7 @@ internal static class SystemInfo
                         continue;
                     string driver = obj["DriverVersion"]?.ToString() ?? "";
                     string? pnp = obj["PNPDeviceID"]?.ToString();
-                    bool isPrimary = primaryName is not null
-                        && (name.Contains(primaryName, StringComparison.OrdinalIgnoreCase)
-                            || primaryName.Contains(name, StringComparison.OrdinalIgnoreCase));
-                    gpus.Add(new GpuAdapterInfo(name, driver, PcieInfo.Format(pnp, name), isPrimary));
+                    gpus.Add(new GpuAdapterInfo(name, driver, PcieInfo.Format(pnp, name), false));
                 }
 
                 if (gpus.Count > 0 && !gpus.Any(g => g.IsPrimary))

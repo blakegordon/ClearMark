@@ -1,3 +1,4 @@
+#if WINDOWS_GPU
 using ComputeSharp;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -192,3 +193,13 @@ internal static class GpuBenchmark
             return scoreFunc(sw.Elapsed.TotalSeconds);
         });
 }
+#else
+namespace ClearMark;
+
+internal record GpuResult(string DeviceName, bool IsPrimary, BenchTest Test, double Value, bool Unsupported = false);
+
+internal static class GpuBenchmark
+{
+    public static List<GpuResult>? Run(Action<string> onStatus) => null;
+}
+#endif
