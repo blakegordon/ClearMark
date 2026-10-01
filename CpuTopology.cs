@@ -18,6 +18,16 @@ internal static class CpuTopology
 
     static CpuTopology()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            Preferred1TLogicalIndex = 0;
+            MaxL1Bytes = 32 * 1024;
+            MaxL2Bytes = 512 * 1024;
+            MaxL3Bytes = 0;
+            TotalL3Bytes = 0;
+            return;
+        }
+
         Preferred1TLogicalIndex = QueryPreferred1T() ?? 0;
         var (l1, l2, l3, totalL3) = QueryCaches();
         if (l3 == 0)

@@ -7,6 +7,7 @@ AnsiConsole.WriteLine();
 
 bool skipStorage = args.Any(a => a.Equals("--skip-storage", StringComparison.OrdinalIgnoreCase));
 bool skipGpu = args.Any(a => a.Equals("--skip-gpu", StringComparison.OrdinalIgnoreCase));
+bool isWindows = OperatingSystem.IsWindows();
 
 // ── 1. Detect hardware ──────────────────────────────────────────────────
 var hw = SystemInfo.Detect();
@@ -31,7 +32,7 @@ AnsiConsole.Status().Start("Running...", ctx =>
     memResults = MemoryBenchmark.Run(status => ctx.Status(status));
     ladderResults = MemoryBenchmark.RunLatencyLadder(status => ctx.Status(status));
 
-    if (!skipStorage)
+    if (!skipStorage && isWindows)
     {
         try { storageResults = StorageBenchmark.Run(status => ctx.Status(status)); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
@@ -40,7 +41,7 @@ AnsiConsole.Status().Start("Running...", ctx =>
         }
     }
 
-    if (!skipGpu)
+    if (!skipGpu && isWindows)
         gpuResults = GpuBenchmark.Run(status => ctx.Status(status));
 });
 
@@ -58,6 +59,8 @@ if (storageError is not null)
     AnsiConsole.MarkupLine($"[red]Storage tests failed:[/] {Markup.Escape(storageError)}\n");
 else if (storageResults.Count > 0)
     Report.PrintStorage(storageResults);
+else if (!isWindows)
+    AnsiConsole.MarkupLine("[dim]Storage tests skipped (Windows-only)[/]\n");
 else
     AnsiConsole.MarkupLine("[dim]Storage tests skipped (--skip-storage)[/]\n");
 
@@ -65,6 +68,8 @@ if (gpuResults != null)
     Report.PrintGpu(gpuResults);
 else if (skipGpu)
     AnsiConsole.MarkupLine("[dim]GPU tests skipped (--skip-gpu)[/]\n");
+else if (!isWindows)
+    AnsiConsole.MarkupLine("[dim]GPU tests skipped (Windows-only)[/]\n");
 else
     AnsiConsole.MarkupLine("[dim]GPU tests skipped (no DX12 GPU detected)[/]\n");
 

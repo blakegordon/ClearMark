@@ -14,6 +14,9 @@ internal static class ThreadPinning
     {
         get
         {
+            if (!OperatingSystem.IsWindows())
+                return Environment.ProcessorCount;
+
             uint n = NativeMethods.GetActiveProcessorCount(NativeMethods.ALL_PROCESSOR_GROUPS);
             return n > 0 ? (int)n : Environment.ProcessorCount;
         }
@@ -21,6 +24,9 @@ internal static class ThreadPinning
 
     public static NativeMethods.GROUP_AFFINITY AffinityFor(int logicalIndex)
     {
+        if (!OperatingSystem.IsWindows())
+            return new NativeMethods.GROUP_AFFINITY { Mask = (UIntPtr)1, Group = 0 };
+
         ushort groupCount = NativeMethods.GetActiveProcessorGroupCount();
         if (groupCount == 0)
             groupCount = 1;
@@ -47,6 +53,9 @@ internal static class ThreadPinning
 
     public static void PinCurrentThread(int logicalIndex)
     {
+        if (!OperatingSystem.IsWindows())
+            return;
+
         var affinity = AffinityFor(logicalIndex);
         if (!NativeMethods.SetThreadGroupAffinity(NativeMethods.GetCurrentThread(), in affinity, out _))
             throw new Win32Exception(Marshal.GetLastPInvokeError(), $"Failed to pin thread to logical processor {logicalIndex}");
@@ -57,6 +66,9 @@ internal static class ThreadPinning
 
     public static T RunOnLogicalProcessor<T>(int logicalIndex, Func<T> body)
     {
+        if (!OperatingSystem.IsWindows())
+            return body();
+
         IntPtr thread = NativeMethods.GetCurrentThread();
         var affinity = AffinityFor(logicalIndex);
         if (!NativeMethods.SetThreadGroupAffinity(thread, in affinity, out var previous))
