@@ -5,8 +5,30 @@ AnsiConsole.MarkupLine($"[bold cyan]{AppInfo.Label}[/] — Transparent System Be
 AnsiConsole.MarkupLine("[dim]https://github.com/blakegordon/ClearMark — All scoring formulas are visible in source code.[/]");
 AnsiConsole.WriteLine();
 
-bool skipStorage = args.Any(a => a.Equals("--skip-storage", StringComparison.OrdinalIgnoreCase));
-bool skipGpu = args.Any(a => a.Equals("--skip-gpu", StringComparison.OrdinalIgnoreCase));
+bool HasFlag(params string[] names) =>
+    args.Any(a => names.Any(n => a.Equals(n, StringComparison.OrdinalIgnoreCase)));
+
+if (HasFlag("--help", "-h", "-?", "/?"))
+{
+    (string Flag, string Description)[] options =
+    [
+        ("--skip-storage", "Skip storage benchmarks (useful for quick runs)"),
+        ("--skip-gpu", "Skip GPU benchmarks (useful if no DX12 GPU)"),
+        ("--help, -h, -?", "Show this help message and exit"),
+    ];
+
+    AnsiConsole.MarkupLine("[bold]Usage:[/] ClearMark [[options]]");
+    AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("[bold]Options:[/]");
+    int width = options.Max(o => o.Flag.Length);
+    foreach (var (flag, description) in options)
+        AnsiConsole.MarkupLine($"  [green]{Markup.Escape(flag.PadRight(width))}[/]  {Markup.Escape(description)}");
+    AnsiConsole.WriteLine();
+    return;
+}
+
+bool skipStorage = HasFlag("--skip-storage");
+bool skipGpu = HasFlag("--skip-gpu");
 
 // ── 1. Detect hardware ──────────────────────────────────────────────────
 var hw = SystemInfo.Detect();

@@ -18,6 +18,7 @@ That's it. ClearMark detects your hardware and runs all benchmarks automatically
 |---|---|
 | `--skip-storage` | Skip storage benchmarks (useful for quick runs) |
 | `--skip-gpu` | Skip GPU benchmarks (useful if no DX12 GPU) |
+| `--help`, `-h`, `-?` | Show the list of available options and exit |
 
 ## What It Measures
 
